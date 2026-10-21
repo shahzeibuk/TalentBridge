@@ -354,51 +354,62 @@ export function ApplicationsPanel({
               </p>
             </div>
           ) : (
-            <ul className="space-y-3">
-              {applications.map((item) => (
-                <li key={item.id} className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">
-                          {item.title} · {item.company}
-                        </p>
+            <div className="overflow-x-auto rounded-xl bg-card ring-1 ring-foreground/10">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="border-b border-border text-xs tracking-wide text-muted-foreground uppercase">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Role</th>
+                    <th className="px-4 py-3 font-medium">Company</th>
+                    <th className="px-4 py-3 font-medium">Contact</th>
+                    <th className="px-4 py-3 font-medium">Reply</th>
+                    <th className="px-4 py-3 font-medium">Sent</th>
+                    <th className="px-4 py-3 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {applications.map((item) => (
+                    <tr key={item.id} className="border-b border-border align-top last:border-0">
+                      <td className="px-4 py-3 font-medium">{item.title}</td>
+                      <td className="px-4 py-3">{item.company}</td>
+                      <td className="max-w-48 truncate px-4 py-3 text-muted-foreground">{item.contactEmail}</td>
+                      <td className="px-4 py-3">
                         <Badge variant={item.replyStatus === "replied" ? "default" : "outline"}>
                           {replyLabel(item.replyStatus)}
                         </Badge>
-                      </div>
-                      <p className="mt-1 truncate text-sm text-muted-foreground">
-                        To {item.contactEmail}
-                        {item.resumeFileName ? ` · ${item.resumeFileName}` : " · Resume removed"}
-                        {item.sentAt ? ` · Sent ${formatWhen(item.sentAt)}` : ""}
-                      </p>
-                      {item.replyStatus === "replied" && item.replyFrom ? (
-                        <p className="mt-2 text-sm leading-6">
-                          Reply from {item.replyFrom}
-                          {item.replySnippet ? ` — ${item.replySnippet}` : ""}
-                        </p>
-                      ) : null}
-                      {item.status === "send_failed" && item.lastError ? (
-                        <p className="mt-2 text-sm leading-6 text-destructive">{item.lastError}</p>
-                      ) : null}
-                      {item.replyStatus === "check_failed" && item.lastError ? (
-                        <p className="mt-2 text-sm leading-6 text-destructive">{item.lastError}</p>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {item.status !== "sent" ? (
-                        <Button type="button" className="h-9" onClick={() => void retry(item.id)}>
-                          Retry send
-                        </Button>
-                      ) : null}
-                      <Button type="button" variant="ghost" onClick={() => void remove(item.id)}>
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                        {item.replyStatus === "replied" && item.replyFrom ? (
+                          <p className="mt-2 max-w-64 text-muted-foreground">
+                            {item.replyFrom}
+                            {item.replySnippet ? ` — ${item.replySnippet}` : ""}
+                          </p>
+                        ) : null}
+                        {item.status === "send_failed" && item.lastError ? (
+                          <p className="mt-2 max-w-64 text-destructive">{item.lastError}</p>
+                        ) : null}
+                        {item.replyStatus === "check_failed" && item.lastError ? (
+                          <p className="mt-2 max-w-64 text-destructive">{item.lastError}</p>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                        {item.sentAt ? formatWhen(item.sentAt) : "Not sent"}
+                        {item.resumeFileName ? <p className="mt-1 max-w-36 truncate">{item.resumeFileName}</p> : null}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          {item.status !== "sent" ? (
+                            <Button type="button" className="h-8" onClick={() => void retry(item.id)}>
+                              Retry send
+                            </Button>
+                          ) : null}
+                          <Button type="button" variant="ghost" className="h-8" onClick={() => void remove(item.id)}>
+                            Remove
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
       <Dialog open={confirming} onOpenChange={setConfirming}>

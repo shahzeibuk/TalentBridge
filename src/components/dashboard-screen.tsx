@@ -11,7 +11,6 @@ import { ResumeDetails } from "@/components/resume-details"
 import { ErrorBlock, LoadingBlock } from "@/components/status-block"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { buttonVariants } from "@/components/ui/button"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { workspaceSection, type WorkspaceSection } from "@/lib/admin-nav"
 import type { ApplicationItem, GmailAccountStatus } from "@/lib/application-data"
 import { formatWhen } from "@/lib/format"
 import { ApiError, api } from "@/lib/http"
@@ -124,19 +124,7 @@ export function DashboardScreen() {
         ? "Profile snapshot replaced with that resume."
         : ""
   const sourceName = resumes.find((resume) => resume.id === profile?.sourceResumeId)?.fileName
-  const requestedTab = searchParams.get("tab")
-  const urlTab =
-    requestedTab === "overview" ||
-    requestedTab === "profile" ||
-    requestedTab === "resumes" ||
-    requestedTab === "jobs" ||
-    requestedTab === "applications"
-      ? requestedTab
-      : searchParams.get("gmail")
-        ? "applications"
-        : searchParams.get("saved") === "1" || searchParams.get("profile") === "1"
-          ? "profile"
-          : "overview"
+  const urlTab = workspaceSection("/dashboard", searchParams)
   const [tab, setTab] = useState(urlTab)
   const [syncedTab, setSyncedTab] = useState(urlTab)
   if (syncedTab !== urlTab) {
@@ -144,7 +132,7 @@ export function DashboardScreen() {
     setTab(urlTab)
   }
 
-  function selectTab(value: string) {
+  function selectTab(value: WorkspaceSection) {
     setTab(value)
     const params = new URLSearchParams(searchParams.toString())
     params.set("tab", value)
@@ -152,19 +140,7 @@ export function DashboardScreen() {
   }
 
   return (
-    <div className="space-y-10">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-heading text-4xl tracking-tight">Dashboard</h1>
-          <p className="mt-2 max-w-xl text-base leading-7 text-muted-foreground">
-            Account totals, then the profile, resumes, job postings, and Gmail applications behind them.
-          </p>
-        </div>
-        <Link href="/resumes/new" className={cn(buttonVariants(), "h-10 px-4")}>
-          Upload a resume
-        </Link>
-      </div>
-
+    <div className="space-y-6">
       {notice ? (
         <Alert>
           <AlertTitle>Saved</AlertTitle>
@@ -176,23 +152,8 @@ export function DashboardScreen() {
       {status === "error" ? <ErrorBlock message={error} onRetry={() => void load()} /> : null}
 
       {status === "ready" ? (
-        <Tabs
-          value={tab}
-          onValueChange={(value, details) => {
-            if (details.reason !== "none") return
-            selectTab(String(value))
-          }}
-        >
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="resumes">Resumes</TabsTrigger>
-            <TabsTrigger value="jobs">Job postings</TabsTrigger>
-            <TabsTrigger value="applications">Applications</TabsTrigger>
-          </TabsList>
-
+        <>
           <div hidden={tab !== "overview"}>
-          <TabsContent value="overview" keepMounted>
             <AnalyticsBoard
               profile={profile}
               resumes={resumes}
@@ -201,11 +162,9 @@ export function DashboardScreen() {
               gmail={gmail}
               onOpen={selectTab}
             />
-          </TabsContent>
           </div>
 
           <div hidden={tab !== "profile"}>
-          <TabsContent value="profile" keepMounted>
           <section className="space-y-4">
             <div>
               <h2 className="font-heading text-3xl tracking-tight">Your profile</h2>
@@ -233,11 +192,9 @@ export function DashboardScreen() {
             )}
             </div>
           </section>
-          </TabsContent>
           </div>
 
           <div hidden={tab !== "resumes"}>
-          <TabsContent value="resumes" keepMounted>
           <section className="min-w-0 space-y-4">
             <div className="flex items-baseline justify-between gap-3">
               <h2 className="font-heading text-3xl tracking-tight">Resumes</h2>
@@ -256,76 +213,83 @@ export function DashboardScreen() {
                 </Link>
               </div>
             ) : (
-              <ul className="space-y-3">
-                {resumes.map((resume) => (
-                  <li
-                    key={resume.id}
-                    className="flex min-w-0 flex-col gap-4 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:flex-row sm:items-center sm:justify-between sm:p-5"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{resume.fullName || resume.fileName}</p>
-                      <p className="truncate text-sm text-muted-foreground">
-                        {resume.fileName} · Updated {formatWhen(resume.updatedAt)}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Badge variant={resume.status === "confirmed" ? "default" : "outline"}>
-                          {resume.status === "confirmed" ? "Saved" : "Needs review"}
-                        </Badge>
-                        <Badge variant={resume.parseSource === "fallback" ? "secondary" : "outline"}>
-                          {sourceLabel(resume.parseSource)}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {resume.status === "draft" ? (
-                        <Link href={`/resumes/${resume.id}/review`} className={cn(buttonVariants(), "h-9 px-3")}>
-                          Review
-                        </Link>
-                      ) : (
-                        <>
-                          <Link
-                            href={`/resumes/${resume.id}`}
-                            className={cn(buttonVariants({ variant: "outline" }), "h-9 px-3")}
-                          >
-                            View
-                          </Link>
-                          <Link
-                            href={`/resumes/${resume.id}/edit`}
-                            className={cn(buttonVariants({ variant: "outline" }), "h-9 px-3")}
-                          >
-                            Edit
-                          </Link>
-                        </>
-                      )}
-                      <Button type="button" variant="ghost" onClick={() => setTarget(resume)}>
-                        Delete
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <div className="overflow-x-auto rounded-xl bg-card ring-1 ring-foreground/10">
+                <table className="w-full min-w-[720px] text-left text-sm">
+                  <thead className="border-b border-border text-xs tracking-wide text-muted-foreground uppercase">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Name</th>
+                      <th className="px-4 py-3 font-medium">File</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                      <th className="px-4 py-3 font-medium">Read with</th>
+                      <th className="px-4 py-3 font-medium">Updated</th>
+                      <th className="px-4 py-3 font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resumes.map((resume) => (
+                      <tr key={resume.id} className="border-b border-border last:border-0">
+                        <td className="max-w-48 truncate px-4 py-3 font-medium">{resume.fullName || resume.fileName}</td>
+                        <td className="max-w-48 truncate px-4 py-3 text-muted-foreground">{resume.fileName}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant={resume.status === "confirmed" ? "default" : "outline"}>
+                            {resume.status === "confirmed" ? "Saved" : "Needs review"}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant={resume.parseSource === "fallback" ? "secondary" : "outline"}>
+                            {sourceLabel(resume.parseSource)}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatWhen(resume.updatedAt)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-2">
+                            {resume.status === "draft" ? (
+                              <Link href={`/resumes/${resume.id}/review`} className={cn(buttonVariants(), "h-8 px-3")}>
+                                Review
+                              </Link>
+                            ) : (
+                              <>
+                                <Link
+                                  href={`/resumes/${resume.id}`}
+                                  className={cn(buttonVariants({ variant: "outline" }), "h-8 px-3")}
+                                >
+                                  View
+                                </Link>
+                                <Link
+                                  href={`/resumes/${resume.id}/edit`}
+                                  className={cn(buttonVariants({ variant: "outline" }), "h-8 px-3")}
+                                >
+                                  Edit
+                                </Link>
+                              </>
+                            )}
+                            <Button type="button" variant="ghost" className="h-8" onClick={() => setTarget(resume)}>
+                              Delete
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
-          </TabsContent>
           </div>
 
           <div hidden={tab !== "jobs"}>
-          <TabsContent value="jobs" keepMounted>
             <JobsPanel resumes={resumes} jobs={jobs} onReload={reloadJobs} />
-          </TabsContent>
           </div>
 
           <div hidden={tab !== "applications"}>
-          <TabsContent value="applications" keepMounted>
             <ApplicationsPanel
               resumes={resumes}
               applications={applications}
               gmail={gmail}
               onReload={reloadApplications}
             />
-          </TabsContent>
           </div>
-        </Tabs>
+        </>
       ) : null}
 
       <Dialog open={target !== null} onOpenChange={(open) => { if (!open) setTarget(null) }}>

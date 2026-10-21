@@ -226,37 +226,53 @@ export function JobsPanel({
       ) : null}
 
       {jobs.length > 0 ? (
-        <ul className="space-y-3">
-          {jobs.map((job) => (
-            <li key={job.id} className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-medium">
-                  {job.title} · {job.company}
-                </p>
-                <Badge variant={job.source === "scraped" ? "default" : "secondary"}>
-                  {job.source === "scraped" ? "From the page" : "Pasted"}
-                </Badge>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">Saved {formatWhen(job.updatedAt)}</p>
-              <p className="mt-3 line-clamp-4 text-sm leading-6 text-muted-foreground">{job.description}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  className="h-9"
-                  onClick={() => {
-                    setResumeId(resumes[0]?.id || "")
-                    setTailorJob(job)
-                  }}
-                >
-                  Tailor a resume
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => void remove(job.id)}>
-                  Remove
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <div className="overflow-x-auto rounded-xl bg-card ring-1 ring-foreground/10">
+          <table className="w-full min-w-[720px] text-left text-sm">
+            <thead className="border-b border-border text-xs tracking-wide text-muted-foreground uppercase">
+              <tr>
+                <th className="px-4 py-3 font-medium">Role</th>
+                <th className="px-4 py-3 font-medium">Company</th>
+                <th className="px-4 py-3 font-medium">Source</th>
+                <th className="px-4 py-3 font-medium">Saved</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((job) => (
+                <tr key={job.id} className="border-b border-border align-top last:border-0">
+                  <td className="max-w-64 px-4 py-3">
+                    <p className="font-medium">{job.title}</p>
+                    <p className="mt-1 line-clamp-2 text-muted-foreground">{job.description}</p>
+                  </td>
+                  <td className="px-4 py-3">{job.company}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant={job.source === "scraped" ? "default" : "secondary"}>
+                      {job.source === "scraped" ? "From the page" : "Pasted"}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatWhen(job.updatedAt)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        className="h-8"
+                        onClick={() => {
+                          setResumeId(resumes[0]?.id || "")
+                          setTailorJob(job)
+                        }}
+                      >
+                        Tailor a resume
+                      </Button>
+                      <Button type="button" variant="ghost" className="h-8" onClick={() => void remove(job.id)}>
+                        Remove
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
 
       <Dialog open={tailorJob !== null} onOpenChange={(open) => { if (!open) setTailorJob(null) }}>

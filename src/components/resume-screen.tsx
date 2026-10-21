@@ -113,7 +113,7 @@ export function ResumeScreen({ id, mode }: { id: string; mode: "view" | "edit" |
         : resume.fileName
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">{resume.fileName}</p>
