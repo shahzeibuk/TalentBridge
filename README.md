@@ -1,6 +1,6 @@
 # TalentBridge
 
-TalentBridge is a job-application assistant. This version covers account onboarding and resumes: sign up, upload a PDF or DOCX, review the extracted fields, and save a profile snapshot.
+TalentBridge is a job-application assistant. You can sign up, upload a PDF or DOCX, review the extracted fields, and save a profile snapshot. You can also connect Gmail and send a cover letter plus a saved resume to a job posting's contact address, then see whether that thread received a reply.
 
 ## Local setup
 
@@ -46,6 +46,9 @@ The dev server listens on `0.0.0.0:3847`. Open [http://127.0.0.1:3847](http://12
 | `AI_PROVIDER` | `gemini` (default), `groq`, or `fallback`. |
 | `GEMINI_API_KEY` | Google Gemini key. Used when `AI_PROVIDER` is `gemini` or unset. |
 | `GROQ_API_KEY` | Groq key. Used only when `AI_PROVIDER=groq`. |
+| `GOOGLE_CLIENT_ID` | OAuth client ID for Gmail. Leave empty until you create a testing client. |
+| `GOOGLE_CLIENT_SECRET` | OAuth client secret for that same client. |
+| `GOOGLE_REDIRECT_URI` | Optional. Defaults to `AUTH_URL` + `/api/gmail/callback`. |
 
 Passwords are hashed with bcrypt. The session cookie is `tb_session` (HttpOnly, SameSite=Lax, 30 days). Resume and profile queries are scoped to the signed-in user.
 
@@ -61,6 +64,21 @@ The extracted text is parsed into name, contact, work experience, education, and
 
 Confirming a resume saves it and copies the confirmed fields onto the user’s profile. Editing a saved resume updates that resume only. “Set as my profile” copies the resume onto the profile again. Deleting a resume leaves the profile snapshot in place.
 
+## Gmail (testing mode)
+
+Connect Gmail on the dashboard, then send a cover letter and a saved resume to a contact email you enter for a job. The message is sent by the Gmail API as the connected account. TalentBridge stores the thread id and, when you load the dashboard or choose Check for replies, reads that thread and shows whether someone else has replied.
+
+The OAuth client should stay in Google Cloud Console’s **Testing** publishing status. That skips Google’s verification review and limits sign-in to the test users you add (up to 100). Testers see Google’s unverified-app warning and can continue. Refresh tokens in testing last about 7 days; after that, connect again.
+
+Scopes requested:
+
+- `https://www.googleapis.com/auth/gmail.send` — send the application from the user’s Gmail
+- `https://www.googleapis.com/auth/gmail.metadata` — read headers on threads this app started, so reply status can be shown
+
+TalentBridge does not list the rest of the mailbox. Tokens are encrypted with `AUTH_SECRET` and stored in Postgres.
+
+Create a Web application OAuth client and register the redirect URI `http://127.0.0.1:3847/api/gmail/callback` (or the `GOOGLE_REDIRECT_URI` you set). Put the client id and secret in `.env`. Leave them empty to run without Gmail; the Connect Gmail button explains what is missing.
+
 ## Deploy on Vercel
 
 1. Create a Neon Postgres database.
@@ -72,4 +90,5 @@ Confirming a resume saves it and copies the confirmed fields onto the user’s p
    - `AUTH_URL`: `https://your-deployment.vercel.app`
    - `AI_PROVIDER`: `gemini`, `groq`, or `fallback`
    - `GEMINI_API_KEY` and/or `GROQ_API_KEY` when you want model parsing. Leave them empty to use the local fallback.
+   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` (`https://your-deployment.vercel.app/api/gmail/callback`) for Gmail. Keep the Google app in Testing and add the people who should connect.
 5. Deploy. The app uses Route Handlers only and does not need a custom server.

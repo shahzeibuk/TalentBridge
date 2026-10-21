@@ -3,7 +3,7 @@ import { DashboardScreen } from "@/components/dashboard-screen"
 import { LoadingBlock } from "@/components/status-block"
 
 export const metadata = {
-  title: "Profile",
+  title: "Dashboard",
 }
 
 export default function DashboardPage() {

@@ -14,8 +14,10 @@ model User {
   name         String
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  profile      Profile?
-  resumes      Resume[]
+  profile         Profile?
+  resumes         Resume[]
+  gmailConnection GmailConnection?
+  applications    JobApplication[]
 }
 
 model Profile {
@@ -56,6 +58,47 @@ model Resume {
   parseNote     String   @default("") @db.Text
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  applications JobApplication[]
+
+  @@index([userId, updatedAt])
+}
+
+model GmailConnection {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email                  String
+  accessTokenCiphertext  String   @db.Text
+  refreshTokenCiphertext String?  @db.Text
+  accessTokenExpiresAt   DateTime
+  scopes                 String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model JobApplication {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeId       String?
+  resume         Resume?   @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  company        String
+  title          String
+  contactEmail   String
+  coverLetter    String    @db.Text
+  subject        String
+  status         String    @default("draft")
+  gmailThreadId  String?
+  gmailMessageId String?
+  sentAt         DateTime?
+  replyStatus    String    @default("unsent")
+  replyFrom      String    @default("")
+  replySnippet   String    @default("") @db.Text
+  replyCheckedAt DateTime?
+  lastError      String    @default("") @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([userId, updatedAt])
 }
