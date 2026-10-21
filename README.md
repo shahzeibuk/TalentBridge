@@ -64,6 +64,12 @@ The extracted text is parsed into name, contact, work experience, education, and
 
 Confirming a resume saves it and copies the confirmed fields onto the user’s profile. Editing a saved resume updates that resume only. “Set as my profile” copies the resume onto the profile again. Deleting a resume leaves the profile snapshot in place.
 
+## Job postings
+
+Paste a job posting URL on the dashboard. TalentBridge fetches that page and saves the title, company, and description on your account, listed next to your resumes. If the site blocks the fetch, times out, or doesn't include a readable description, the page shows the error and a form where you paste the posting yourself.
+
+Tailor a resume from a saved posting to line up keywords and phrasing an applicant tracking system looks for. The draft only keeps keywords the source resume already supports. Keywords the posting asks for that aren't in the resume are listed as left out. With `GEMINI_API_KEY` or `GROQ_API_KEY`, the named model rewrites descriptions under that rule. Without a key, or if the model call fails, a local ATS pass does the same keyword match and says an AI model did not produce the draft. Review the draft before you confirm it.
+
 ## Gmail (testing mode)
 
 Connect Gmail on the dashboard, then send a cover letter and a saved resume to a contact email you enter for a job. The message is sent by the Gmail API as the connected account. TalentBridge stores the thread id and, when you load the dashboard or choose Check for replies, reads that thread and shows whether someone else has replied.

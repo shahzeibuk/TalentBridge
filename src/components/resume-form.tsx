@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ApiError, api } from "@/lib/http"
-import type { Education, Experience, ResumeData, ResumeDetail } from "@/lib/resume-data"
+import { draftHeading, type Education, type Experience, type ResumeData, type ResumeDetail } from "@/lib/resume-data"
 
 type ExperienceDraft = Experience & { key: string }
 type EducationDraft = Education & { key: string }
@@ -192,14 +192,14 @@ export function ResumeForm({ resume, mode }: { resume: ResumeDetail; mode: "revi
     >
       {resume.parseSource === "fallback" ? (
         <Alert>
-          <AlertTitle>Local fallback extractor</AlertTitle>
+          <AlertTitle>{draftHeading(resume.parseSource, resume.parseNote)}</AlertTitle>
           <AlertDescription>
             This draft did not come from an AI model. {resume.parseNote}
           </AlertDescription>
         </Alert>
       ) : (
         <Alert>
-          <AlertTitle>{resume.parseSource === "groq" ? "Drafted by Groq" : "Drafted by Gemini"}</AlertTitle>
+          <AlertTitle>{draftHeading(resume.parseSource, resume.parseNote)}</AlertTitle>
           <AlertDescription>{resume.parseNote}</AlertDescription>
         </Alert>
       )}

@@ -260,3 +260,10 @@ export function asParseSource(value: string): ParseSource {
   if (value === "gemini" || value === "groq") return value
   return "fallback"
 }
+
+export function draftHeading(source: ParseSource, note: string) {
+  const tailored = /ATS|tailor/i.test(note)
+  if (source === "fallback") return tailored ? "Local ATS pass" : "Local fallback extractor"
+  if (source === "groq") return tailored ? "Tailored by Groq" : "Drafted by Groq"
+  return tailored ? "Tailored by Gemini" : "Drafted by Gemini"
+}

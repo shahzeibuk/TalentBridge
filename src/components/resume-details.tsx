@@ -25,7 +25,7 @@ export function ResumeDetails({ data }: { data: ResumeData }) {
               <li key={link}>
                 <a
                   href={hrefFor(link)}
-                  className="text-sm text-primary underline underline-offset-4"
+                  className="break-all text-sm text-primary underline underline-offset-4"
                   target="_blank"
                   rel="noreferrer"
                 >

@@ -1,10 +1,12 @@
 export class ApiError extends Error {
   status: number
+  details: Record<string, unknown> | null
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, details: Record<string, unknown> | null = null) {
     super(message)
     this.name = "ApiError"
     this.status = status
+    this.details = details
   }
 }
 
@@ -34,9 +36,9 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     )
   }
 
-  const payload = (await response.json().catch(() => null)) as { error?: string } | null
+  const payload = (await response.json().catch(() => null)) as ({ error?: string } & Record<string, unknown>) | null
   if (!response.ok) {
-    throw new ApiError(payload?.error || "Something went wrong. Try again.", response.status)
+    throw new ApiError(payload?.error || "Something went wrong. Try again.", response.status, payload)
   }
   return payload as T
 }

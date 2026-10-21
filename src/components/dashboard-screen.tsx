@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { ApplicationsPanel } from "@/components/applications-panel"
+import { JobsPanel } from "@/components/jobs-panel"
 import { ResumeDetails } from "@/components/resume-details"
 import { ErrorBlock, LoadingBlock } from "@/components/status-block"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -97,7 +98,7 @@ export function DashboardScreen() {
         <div>
           <h1 className="font-heading text-4xl tracking-tight">Dashboard</h1>
           <p className="mt-2 max-w-xl text-base leading-7 text-muted-foreground">
-            Your profile snapshot, saved resumes, and applications sent from Gmail.
+            Your profile snapshot, saved resumes, job postings, and applications sent from Gmail.
           </p>
         </div>
         <Link href="/resumes/new" className={cn(buttonVariants(), "h-10 px-4")}>
@@ -147,7 +148,8 @@ export function DashboardScreen() {
             </div>
           </section>
 
-          <section className="space-y-4">
+          <div className="grid min-w-0 items-start gap-10 lg:grid-cols-2">
+          <section className="min-w-0 space-y-4">
             <div className="flex items-baseline justify-between gap-3">
               <h2 className="font-heading text-3xl tracking-tight">Resumes</h2>
               <p className="text-sm text-muted-foreground">
@@ -169,7 +171,7 @@ export function DashboardScreen() {
                 {resumes.map((resume) => (
                   <li
                     key={resume.id}
-                    className="flex flex-col gap-4 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+                    className="flex min-w-0 flex-col gap-4 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:flex-row sm:items-center sm:justify-between sm:p-5"
                   >
                     <div className="min-w-0">
                       <p className="truncate font-medium">{resume.fullName || resume.fileName}</p>
@@ -215,6 +217,8 @@ export function DashboardScreen() {
               </ul>
             )}
           </section>
+          <JobsPanel resumes={resumes} />
+          </div>
         </>
       ) : null}
 

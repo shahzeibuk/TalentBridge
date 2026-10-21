@@ -96,13 +96,13 @@ function parseModelJson(raw: string) {
   }
 }
 
-async function geminiParse(text: string, apiKey: string, fetchImpl: typeof fetch) {
+async function geminiJson(system: string, user: string, apiKey: string, fetchImpl: typeof fetch) {
   const makeBody = (includeThinking: boolean) =>
     JSON.stringify({
       contents: [
         {
           role: "user",
-          parts: [{ text: `${SYSTEM_PROMPT}\n\nResume text:\n${text}` }],
+          parts: [{ text: `${system}\n\n${user}` }],
         },
       ],
       generationConfig: {
@@ -141,14 +141,14 @@ async function geminiParse(text: string, apiKey: string, fetchImpl: typeof fetch
   return parseModelJson(textOut)
 }
 
-async function groqParse(text: string, apiKey: string, fetchImpl: typeof fetch) {
+async function groqJson(system: string, user: string, apiKey: string, fetchImpl: typeof fetch) {
   const makeBody = (extras: Record<string, unknown>) =>
     JSON.stringify({
       model: GROQ_MODEL,
       temperature: 0.1,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: text },
+        { role: "system", content: system },
+        { role: "user", content: user },
       ],
       ...extras,
     })
@@ -178,31 +178,34 @@ async function groqParse(text: string, apiKey: string, fetchImpl: typeof fetch) 
   return parseModelJson(content)
 }
 
-export async function parseResumeText(text: string, deps: ParseDeps = {}): Promise<ParseResult> {
+export async function completeJson(system: string, user: string, deps: ParseDeps = {}) {
   const env = deps.env ?? process.env
   const fetchImpl = deps.fetchImpl ?? fetch
-  const clipped = text.slice(0, 24_000)
   const choice = resolveProvider(env)
+  if (choice.provider === "fallback") return choice
+  const json =
+    choice.provider === "gemini"
+      ? await geminiJson(system, user, choice.apiKey, fetchImpl)
+      : await groqJson(system, user, choice.apiKey, fetchImpl)
+  return { provider: choice.provider, json }
+}
 
-  if (choice.provider === "fallback") {
-    return fallbackResult(clipped, choice.note)
-  }
-
+export async function parseResumeText(text: string, deps: ParseDeps = {}): Promise<ParseResult> {
+  const clipped = text.slice(0, 24_000)
   try {
-    const modelJson =
-      choice.provider === "gemini"
-        ? await geminiParse(clipped, choice.apiKey, fetchImpl)
-        : await groqParse(clipped, choice.apiKey, fetchImpl)
-    const data = looseResumeData(modelJson)
-    const label = choice.provider === "gemini" ? `Gemini (${GEMINI_MODEL})` : `Groq (${GROQ_MODEL})`
+    const result = await completeJson(SYSTEM_PROMPT, `Resume text:\n${clipped}`, deps)
+    if (result.provider === "fallback") return fallbackResult(clipped, result.note)
+    const data = looseResumeData(result.json)
+    const label = result.provider === "gemini" ? `Gemini (${GEMINI_MODEL})` : `Groq (${GROQ_MODEL})`
     return {
       data,
-      parseSource: choice.provider,
+      parseSource: result.provider,
       parseNote: `Drafted by ${label}. This text came from the model. Correct anything that doesn't match the file before you confirm.`,
     }
   } catch (error) {
     const reason = error instanceof Error ? error.message : "The AI request failed."
-    const who = choice.provider === "gemini" ? "Gemini" : "Groq"
+    const requested = ((deps.env ?? process.env).AI_PROVIDER ?? "gemini").trim().toLowerCase()
+    const who = requested === "groq" ? "Groq" : "Gemini"
     return fallbackResult(
       clipped,
       `${who} didn't return usable resume JSON (${reason}). ${FALLBACK_NOTE}`,

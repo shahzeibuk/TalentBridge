@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ApiError, api } from "@/lib/http"
-import type { ResumeDetail } from "@/lib/resume-data"
+import { draftHeading, type ResumeDetail } from "@/lib/resume-data"
 import { cn } from "@/lib/utils"
 
 export function ResumeScreen({ id, mode }: { id: string; mode: "view" | "edit" | "review" }) {
@@ -154,10 +154,13 @@ export function ResumeScreen({ id, mode }: { id: string; mode: "view" | "edit" |
         <div className="rounded-2xl bg-card p-5 ring-1 ring-foreground/10 sm:p-7">
           {resume.parseSource === "fallback" ? (
             <p className="mb-6 text-sm leading-6 text-muted-foreground">
-              Local fallback extractor. This draft did not come from an AI model. {resume.parseNote}
+              {draftHeading(resume.parseSource, resume.parseNote)}. This draft did not come from an AI model.{" "}
+              {resume.parseNote}
             </p>
           ) : (
-            <p className="mb-6 text-sm leading-6 text-muted-foreground">{resume.parseNote}</p>
+            <p className="mb-6 text-sm leading-6 text-muted-foreground">
+              {draftHeading(resume.parseSource, resume.parseNote)}. {resume.parseNote}
+            </p>
           )}
           <ResumeDetails data={resume} />
         </div>
