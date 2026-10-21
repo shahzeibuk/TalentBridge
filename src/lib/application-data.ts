@@ -26,6 +26,7 @@ export type ApplicationItem = {
   sentAt: string | null
   replyCheckedAt: string | null
   lastError: string
+  createdAt: string
   updatedAt: string
 }
 

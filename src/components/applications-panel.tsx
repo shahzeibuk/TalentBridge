@@ -1,9 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
-import { ErrorBlock, LoadingBlock } from "@/components/status-block"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,7 +19,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import type { ApplicationItem, GmailAccountStatus, ReplyStatus } from "@/lib/application-data"
 import { formatWhen } from "@/lib/format"
-import { ApiError, api } from "@/lib/http"
+import { api } from "@/lib/http"
 import type { ResumeListItem } from "@/lib/resume-data"
 
 const emptyForm = {
@@ -79,48 +78,24 @@ function gmailNotice(code: string | null, expired: boolean) {
   return null
 }
 
-export function ApplicationsPanel({ resumes }: { resumes: ResumeListItem[] }) {
-  const router = useRouter()
+export function ApplicationsPanel({
+  resumes,
+  applications,
+  gmail,
+  onReload,
+}: {
+  resumes: ResumeListItem[]
+  applications: ApplicationItem[]
+  gmail: GmailAccountStatus | null
+  onReload: (refresh: boolean) => Promise<void>
+}) {
   const searchParams = useSearchParams()
-  const [gmail, setGmail] = useState<GmailAccountStatus | null>(null)
-  const [applications, setApplications] = useState<ApplicationItem[]>([])
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
-  const [error, setError] = useState("")
   const [form, setForm] = useState(emptyForm)
   const [formError, setFormError] = useState("")
   const [confirming, setConfirming] = useState(false)
   const [sending, setSending] = useState(false)
   const [checking, setChecking] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
-
-  const load = useCallback(
-    async (refresh: boolean) => {
-      setError("")
-      try {
-        const result = await api<{ gmail: GmailAccountStatus; applications: ApplicationItem[] }>(
-          `/api/applications${refresh ? "?refresh=1" : ""}`,
-        )
-        setGmail(result.gmail)
-        setApplications(result.applications)
-        setStatus("ready")
-      } catch (caught) {
-        if (caught instanceof ApiError && caught.status === 401) {
-          router.replace("/login")
-          return
-        }
-        setError(caught instanceof Error ? caught.message : "We couldn't load your applications.")
-        setStatus("error")
-      }
-    },
-    [router],
-  )
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void load(true)
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [load])
 
   const notice = gmailNotice(searchParams.get("gmail"), Boolean(gmail?.expired))
   const sentCount = applications.filter((item) => item.status === "sent").length
@@ -172,13 +147,13 @@ export function ApplicationsPanel({ resumes }: { resumes: ResumeListItem[] }) {
       setForm(emptyForm)
       setConfirming(false)
       toast.success("Sent from your Gmail account. Reply status will show on this job entry.")
-      await load(true)
+      await onReload(true)
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "We couldn't send that application."
       setFormError(message)
       setConfirming(false)
       toast.error(message)
-      await load(true)
+      await onReload(true)
     } finally {
       setSending(false)
     }
@@ -188,10 +163,10 @@ export function ApplicationsPanel({ resumes }: { resumes: ResumeListItem[] }) {
     try {
       await api(`/api/applications/${id}/send`, { method: "POST" })
       toast.success("Sent from your Gmail account.")
-      await load(true)
+      await onReload(true)
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "We couldn't send that application.")
-      await load(true)
+      await onReload(true)
     }
   }
 
@@ -199,7 +174,7 @@ export function ApplicationsPanel({ resumes }: { resumes: ResumeListItem[] }) {
     try {
       await api(`/api/applications/${id}`, { method: "DELETE" })
       toast.success("Application removed.")
-      await load(false)
+      await onReload(false)
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "We couldn't remove that application.")
     }
@@ -210,7 +185,7 @@ export function ApplicationsPanel({ resumes }: { resumes: ResumeListItem[] }) {
     try {
       await api("/api/gmail/disconnect", { method: "POST" })
       toast.success("Gmail disconnected.")
-      await load(false)
+      await onReload(false)
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "We couldn't disconnect Gmail.")
     } finally {
@@ -237,7 +212,7 @@ export function ApplicationsPanel({ resumes }: { resumes: ResumeListItem[] }) {
             disabled={checking}
             onClick={() => {
               setChecking(true)
-              void load(true).finally(() => setChecking(false))
+              void onReload(true).finally(() => setChecking(false))
             }}
           >
             {checking ? "Checking replies…" : "Check for replies"}
@@ -286,12 +261,7 @@ export function ApplicationsPanel({ resumes }: { resumes: ResumeListItem[] }) {
         )}
       </div>
 
-      {status === "loading" ? <LoadingBlock label="Loading applications…" /> : null}
-      {status === "error" ? <ErrorBlock message={error} onRetry={() => void load(true)} /> : null}
-
-      {status === "ready" ? (
-        <>
-          <form
+      <form
             className="space-y-4 rounded-2xl bg-card p-5 ring-1 ring-foreground/10 sm:p-6"
             onSubmit={(event) => {
               event.preventDefault()
@@ -430,8 +400,6 @@ export function ApplicationsPanel({ resumes }: { resumes: ResumeListItem[] }) {
               ))}
             </ul>
           )}
-        </>
-      ) : null}
 
       <Dialog open={confirming} onOpenChange={setConfirming}>
         <DialogContent>

@@ -1,9 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ErrorBlock, LoadingBlock } from "@/components/status-block"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,11 +24,16 @@ import type { ResumeListItem } from "@/lib/resume-data"
 
 const emptyManual = { title: "", company: "", description: "", sourceUrl: "" }
 
-export function JobsPanel({ resumes }: { resumes: ResumeListItem[] }) {
+export function JobsPanel({
+  resumes,
+  jobs,
+  onReload,
+}: {
+  resumes: ResumeListItem[]
+  jobs: JobPostingItem[]
+  onReload: () => Promise<void>
+}) {
   const router = useRouter()
-  const [jobs, setJobs] = useState<JobPostingItem[]>([])
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
-  const [error, setError] = useState("")
   const [url, setUrl] = useState("")
   const [importing, setImporting] = useState(false)
   const [scrapeError, setScrapeError] = useState("")
@@ -39,29 +43,6 @@ export function JobsPanel({ resumes }: { resumes: ResumeListItem[] }) {
   const [tailorJob, setTailorJob] = useState<JobPostingItem | null>(null)
   const [resumeId, setResumeId] = useState("")
   const [tailoring, setTailoring] = useState(false)
-
-  const load = useCallback(async () => {
-    setError("")
-    try {
-      const result = await api<{ jobs: JobPostingItem[] }>("/api/jobs")
-      setJobs(result.jobs)
-      setStatus("ready")
-    } catch (caught) {
-      if (caught instanceof ApiError && caught.status === 401) {
-        router.replace("/login")
-        return
-      }
-      setError(caught instanceof Error ? caught.message : "We couldn't load your job postings.")
-      setStatus("error")
-    }
-  }, [router])
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void load()
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [load])
 
   function showManual(partial?: { title?: string; company?: string; description?: string; url?: string }) {
     setManual({
@@ -84,7 +65,7 @@ export function JobsPanel({ resumes }: { resumes: ResumeListItem[] }) {
       await api("/api/jobs/import", { method: "POST", body: JSON.stringify({ url: url.trim() }) })
       setUrl("")
       toast.success("Job posting saved from that page.")
-      await load()
+      await onReload()
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "We couldn't read that page."
       setScrapeError(message)
@@ -114,7 +95,7 @@ export function JobsPanel({ resumes }: { resumes: ResumeListItem[] }) {
       setScrapeError("")
       setUrl("")
       toast.success("Job posting saved.")
-      await load()
+      await onReload()
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "We couldn't save that job posting.")
     } finally {
@@ -126,7 +107,7 @@ export function JobsPanel({ resumes }: { resumes: ResumeListItem[] }) {
     try {
       await api(`/api/jobs/${id}`, { method: "DELETE" })
       toast.success("Job posting removed.")
-      await load()
+      await onReload()
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "We couldn't remove that job posting.")
     }
@@ -234,10 +215,7 @@ export function JobsPanel({ resumes }: { resumes: ResumeListItem[] }) {
         </form>
       ) : null}
 
-      {status === "loading" ? <LoadingBlock label="Loading job postings…" /> : null}
-      {status === "error" ? <ErrorBlock message={error} onRetry={() => void load()} /> : null}
-
-      {status === "ready" && jobs.length === 0 ? (
+      {jobs.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card px-4 py-10 text-center">
           <h3 className="font-heading text-2xl">No job postings yet</h3>
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
@@ -247,7 +225,7 @@ export function JobsPanel({ resumes }: { resumes: ResumeListItem[] }) {
         </div>
       ) : null}
 
-      {status === "ready" && jobs.length > 0 ? (
+      {jobs.length > 0 ? (
         <ul className="space-y-3">
           {jobs.map((job) => (
             <li key={job.id} className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">

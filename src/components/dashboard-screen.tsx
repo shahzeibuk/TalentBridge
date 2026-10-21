@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
+import { AnalyticsBoard } from "@/components/analytics-board"
 import { ApplicationsPanel } from "@/components/applications-panel"
 import { JobsPanel } from "@/components/jobs-panel"
 import { ResumeDetails } from "@/components/resume-details"
@@ -21,8 +22,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import type { ApplicationItem, GmailAccountStatus } from "@/lib/application-data"
 import { formatWhen } from "@/lib/format"
 import { ApiError, api } from "@/lib/http"
+import type { JobPostingItem } from "@/lib/job-data"
 import type { ProfileSnapshot, ResumeListItem } from "@/lib/resume-data"
 import { cn } from "@/lib/utils"
 
@@ -37,6 +40,9 @@ export function DashboardScreen() {
   const searchParams = useSearchParams()
   const [profile, setProfile] = useState<ProfileSnapshot | null>(null)
   const [resumes, setResumes] = useState<ResumeListItem[]>([])
+  const [jobs, setJobs] = useState<JobPostingItem[]>([])
+  const [applications, setApplications] = useState<ApplicationItem[]>([])
+  const [gmail, setGmail] = useState<GmailAccountStatus | null>(null)
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
   const [error, setError] = useState("")
   const [target, setTarget] = useState<ResumeListItem | null>(null)
@@ -46,12 +52,17 @@ export function DashboardScreen() {
     setStatus("loading")
     setError("")
     try {
-      const [profileResponse, resumeResponse] = await Promise.all([
+      const [profileResponse, resumeResponse, jobResponse, applicationResponse] = await Promise.all([
         api<{ profile: ProfileSnapshot | null }>("/api/profile"),
         api<{ resumes: ResumeListItem[] }>("/api/resumes"),
+        api<{ jobs: JobPostingItem[] }>("/api/jobs"),
+        api<{ gmail: GmailAccountStatus; applications: ApplicationItem[] }>("/api/applications?refresh=1"),
       ])
       setProfile(profileResponse.profile)
       setResumes(resumeResponse.resumes)
+      setJobs(jobResponse.jobs)
+      setApplications(applicationResponse.applications)
+      setGmail(applicationResponse.gmail)
       setStatus("ready")
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) {
@@ -62,6 +73,27 @@ export function DashboardScreen() {
       setStatus("error")
     }
   }, [router])
+
+  const reloadJobs = useCallback(async () => {
+    try {
+      const result = await api<{ jobs: JobPostingItem[] }>("/api/jobs")
+      setJobs(result.jobs)
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "We couldn't refresh your job postings.")
+    }
+  }, [])
+
+  const reloadApplications = useCallback(async (refresh: boolean) => {
+    try {
+      const result = await api<{ gmail: GmailAccountStatus; applications: ApplicationItem[] }>(
+        `/api/applications${refresh ? "?refresh=1" : ""}`,
+      )
+      setApplications(result.applications)
+      setGmail(result.gmail)
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "We couldn't refresh your applications.")
+    }
+  }, [])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -94,11 +126,17 @@ export function DashboardScreen() {
   const sourceName = resumes.find((resume) => resume.id === profile?.sourceResumeId)?.fileName
   const requestedTab = searchParams.get("tab")
   const urlTab =
-    requestedTab === "resumes" || requestedTab === "jobs" || requestedTab === "applications" || requestedTab === "profile"
+    requestedTab === "overview" ||
+    requestedTab === "profile" ||
+    requestedTab === "resumes" ||
+    requestedTab === "jobs" ||
+    requestedTab === "applications"
       ? requestedTab
       : searchParams.get("gmail")
         ? "applications"
-        : "profile"
+        : searchParams.get("saved") === "1" || searchParams.get("profile") === "1"
+          ? "profile"
+          : "overview"
   const [tab, setTab] = useState(urlTab)
   const [syncedTab, setSyncedTab] = useState(urlTab)
   if (syncedTab !== urlTab) {
@@ -119,7 +157,7 @@ export function DashboardScreen() {
         <div>
           <h1 className="font-heading text-4xl tracking-tight">Dashboard</h1>
           <p className="mt-2 max-w-xl text-base leading-7 text-muted-foreground">
-            Your profile snapshot, saved resumes, job postings, and applications sent from Gmail.
+            Account totals, then the profile, resumes, job postings, and Gmail applications behind them.
           </p>
         </div>
         <Link href="/resumes/new" className={cn(buttonVariants(), "h-10 px-4")}>
@@ -134,7 +172,7 @@ export function DashboardScreen() {
         </Alert>
       ) : null}
 
-      {status === "loading" ? <LoadingBlock label="Loading your profile and resumes…" /> : null}
+      {status === "loading" ? <LoadingBlock label="Loading your account…" /> : null}
       {status === "error" ? <ErrorBlock message={error} onRetry={() => void load()} /> : null}
 
       {status === "ready" ? (
@@ -146,12 +184,27 @@ export function DashboardScreen() {
           }}
         >
           <TabsList>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="resumes">Resumes</TabsTrigger>
             <TabsTrigger value="jobs">Job postings</TabsTrigger>
             <TabsTrigger value="applications">Applications</TabsTrigger>
           </TabsList>
 
+          <div hidden={tab !== "overview"}>
+          <TabsContent value="overview" keepMounted>
+            <AnalyticsBoard
+              profile={profile}
+              resumes={resumes}
+              jobs={jobs}
+              applications={applications}
+              gmail={gmail}
+              onOpen={selectTab}
+            />
+          </TabsContent>
+          </div>
+
+          <div hidden={tab !== "profile"}>
           <TabsContent value="profile" keepMounted>
           <section className="space-y-4">
             <div>
@@ -181,7 +234,9 @@ export function DashboardScreen() {
             </div>
           </section>
           </TabsContent>
+          </div>
 
+          <div hidden={tab !== "resumes"}>
           <TabsContent value="resumes" keepMounted>
           <section className="min-w-0 space-y-4">
             <div className="flex items-baseline justify-between gap-3">
@@ -252,14 +307,24 @@ export function DashboardScreen() {
             )}
           </section>
           </TabsContent>
+          </div>
 
+          <div hidden={tab !== "jobs"}>
           <TabsContent value="jobs" keepMounted>
-            <JobsPanel resumes={resumes} />
+            <JobsPanel resumes={resumes} jobs={jobs} onReload={reloadJobs} />
           </TabsContent>
+          </div>
 
+          <div hidden={tab !== "applications"}>
           <TabsContent value="applications" keepMounted>
-            <ApplicationsPanel resumes={resumes} />
+            <ApplicationsPanel
+              resumes={resumes}
+              applications={applications}
+              gmail={gmail}
+              onReload={reloadApplications}
+            />
           </TabsContent>
+          </div>
         </Tabs>
       ) : null}
 

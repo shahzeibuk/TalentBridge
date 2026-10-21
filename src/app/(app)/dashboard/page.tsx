@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<LoadingBlock label="Loading your profile and resumes…" />}>
+    <Suspense fallback={<LoadingBlock label="Loading your account…" />}>
       <DashboardScreen />
     </Suspense>
   )

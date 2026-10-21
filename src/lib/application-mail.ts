@@ -46,6 +46,7 @@ function toItem(row: {
   sentAt: Date | null
   replyCheckedAt: Date | null
   lastError: string
+  createdAt: Date
   updatedAt: Date
   resume: { fileName: string } | null
 }): ApplicationItem {
@@ -65,6 +66,7 @@ function toItem(row: {
     sentAt: row.sentAt?.toISOString() ?? null,
     replyCheckedAt: row.replyCheckedAt?.toISOString() ?? null,
     lastError: row.lastError,
+    createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
 }
@@ -84,6 +86,7 @@ const listSelect = {
   sentAt: true,
   replyCheckedAt: true,
   lastError: true,
+  createdAt: true,
   updatedAt: true,
   gmailThreadId: true,
   resume: { select: { fileName: true } },
