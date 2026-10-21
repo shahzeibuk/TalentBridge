@@ -2,9 +2,9 @@
 
 import { useState } from "react"
 import { useSearchParams } from "next/navigation"
+import { ArrowLeft, FileText, Inbox, PenLine, RefreshCw, Send, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -21,6 +21,7 @@ import type { ApplicationItem, GmailAccountStatus, ReplyStatus } from "@/lib/app
 import { formatWhen } from "@/lib/format"
 import { api } from "@/lib/http"
 import type { ResumeListItem } from "@/lib/resume-data"
+import { cn } from "@/lib/utils"
 
 const emptyForm = {
   company: "",
@@ -31,11 +32,28 @@ const emptyForm = {
   subject: "",
 }
 
+type Folder = "inbox" | "sent" | "drafts"
+
 function replyLabel(status: ReplyStatus) {
   if (status === "replied") return "Reply received"
   if (status === "waiting") return "No reply yet"
   if (status === "check_failed") return "Couldn't check replies"
   return "Not sent"
+}
+
+function subjectLine(item: ApplicationItem) {
+  return item.subject.trim() || `Application for ${item.title} at ${item.company}`
+}
+
+function snippet(text: string) {
+  const line = text.replace(/\s+/g, " ").trim()
+  return line.length > 90 ? `${line.slice(0, 90)}…` : line
+}
+
+function inFolder(item: ApplicationItem, folder: Folder) {
+  if (folder === "sent") return item.status === "sent"
+  if (folder === "drafts") return item.status !== "sent"
+  return true
 }
 
 function gmailNotice(code: string | null, expired: boolean) {
@@ -96,12 +114,30 @@ export function ApplicationsPanel({
   const [sending, setSending] = useState(false)
   const [checking, setChecking] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
+  const [folder, setFolder] = useState<Folder>("inbox")
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [composing, setComposing] = useState(false)
 
   const notice = gmailNotice(searchParams.get("gmail"), Boolean(gmail?.expired))
   const sentCount = applications.filter((item) => item.status === "sent").length
+  const visible = applications.filter((item) => inFolder(item, folder))
+  const selected = applications.find((item) => item.id === selectedId) || null
+  const chosenResume = resumes.find((resume) => resume.id === form.resumeId)
+  const showReader = Boolean(selected) && !composing
 
   function update(field: keyof typeof emptyForm, value: string) {
     setForm((current) => ({ ...current, [field]: value }))
+  }
+
+  function openCompose() {
+    setComposing(true)
+    setSelectedId(null)
+    setFormError("")
+  }
+
+  function openMessage(id: string) {
+    setComposing(false)
+    setSelectedId(id)
   }
 
   function startSend() {
@@ -146,6 +182,8 @@ export function ApplicationsPanel({
       })
       setForm(emptyForm)
       setConfirming(false)
+      setComposing(false)
+      setFolder("sent")
       toast.success("Sent from your Gmail account. Reply status will show on this job entry.")
       await onReload(true)
     } catch (caught) {
@@ -163,6 +201,7 @@ export function ApplicationsPanel({
     try {
       await api(`/api/applications/${id}/send`, { method: "POST" })
       toast.success("Sent from your Gmail account.")
+      setFolder("sent")
       await onReload(true)
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "We couldn't send that application.")
@@ -173,6 +212,7 @@ export function ApplicationsPanel({
   async function remove(id: string) {
     try {
       await api(`/api/applications/${id}`, { method: "DELETE" })
+      if (selectedId === id) setSelectedId(null)
       toast.success("Application removed.")
       await onReload(false)
     } catch (caught) {
@@ -193,31 +233,19 @@ export function ApplicationsPanel({
     }
   }
 
-  const chosenResume = resumes.find((resume) => resume.id === form.resumeId)
+  const folders: { id: Folder; label: string; icon: typeof Inbox; count: number }[] = [
+    { id: "inbox", label: "Inbox", icon: Inbox, count: applications.length },
+    { id: "sent", label: "Sent", icon: Send, count: sentCount },
+    { id: "drafts", label: "Drafts", icon: FileText, count: applications.length - sentCount },
+  ]
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="font-heading text-3xl tracking-tight">Applications</h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-            Send the cover letter you wrote, with a saved resume attached, from your own Gmail account.
-          </p>
-        </div>
-        {gmail?.connected && sentCount > 0 ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10"
-            disabled={checking}
-            onClick={() => {
-              setChecking(true)
-              void onReload(true).finally(() => setChecking(false))
-            }}
-          >
-            {checking ? "Checking replies…" : "Check for replies"}
-          </Button>
-        ) : null}
+      <div className="print:hidden">
+        <h2 className="font-heading text-3xl tracking-tight">Applications</h2>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+          Cover letters you send from Gmail, listed like mail. Replies are read only on threads this app started.
+        </p>
       </div>
 
       {notice ? (
@@ -227,84 +255,127 @@ export function ApplicationsPanel({
         </Alert>
       ) : null}
 
-      <div className="rounded-2xl bg-card p-5 ring-1 ring-foreground/10 sm:p-6">
-        {gmail?.connected ? (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium">Gmail connected as {gmail.email}</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Messages send from this inbox. Reply status is read from those threads only. This OAuth client is meant
-                for Google&apos;s testing mode: add testers in Cloud Console, and reconnect after about 7 days.
-              </p>
-            </div>
-            <Button type="button" variant="outline" disabled={disconnecting} onClick={() => void disconnect()}>
-              {disconnecting ? "Disconnecting…" : "Disconnect"}
-            </Button>
+      <div className="flex min-h-[560px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-card md:h-[min(720px,calc(100dvh-9rem))] md:flex-row">
+        <nav className="flex gap-1 overflow-x-auto border-b border-white/10 p-3 md:w-52 md:shrink-0 md:flex-col md:overflow-visible md:border-r md:border-b-0" aria-label="Mail">
+          <button
+            type="button"
+            onClick={openCompose}
+            className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground shadow-lg md:mb-3"
+          >
+            <PenLine className="size-4" />
+            Compose
+          </button>
+          {folders.map((item) => {
+            const Icon = item.icon
+            const active = folder === item.id && !composing
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setFolder(item.id)
+                  setComposing(false)
+                  setSelectedId(null)
+                }}
+                className={cn(
+                  "inline-flex h-10 shrink-0 items-center gap-3 rounded-full px-3 text-sm md:w-full",
+                  active ? "bg-white/10 font-medium" : "text-muted-foreground hover:bg-white/5",
+                )}
+              >
+                <Icon className="size-4" />
+                <span className="flex-1 text-left">{item.label}</span>
+                <span className="text-xs tabular-nums">{item.count}</span>
+              </button>
+            )
+          })}
+          <div className="mt-auto hidden border-t border-white/10 pt-3 md:block">
+            {gmail?.connected ? (
+              <div>
+                <p className="truncate text-sm font-medium">{gmail.email}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Testing mode. Reconnect after about 7 days.
+                </p>
+                <Button type="button" variant="ghost" className="mt-2 h-8 px-2" disabled={disconnecting} onClick={() => void disconnect()}>
+                  {disconnecting ? "Disconnecting…" : "Disconnect"}
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm font-medium">Send from your Gmail</p>
+                <a
+                  href="/api/gmail/connect"
+                  className="mt-2 inline-flex h-9 items-center rounded-full bg-primary px-3 text-sm font-medium text-primary-foreground"
+                >
+                  Connect Gmail
+                </a>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium">Send from your Gmail account</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Connect Gmail to allow sending email and reading replies on the threads TalentBridge starts. While the
-                Google app stays in Testing, only the test users you add can connect. Google&apos;s full verification
-                review is not part of this setup.
-              </p>
-            </div>
-            <a
-              href="/api/gmail/connect"
-              className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground"
-            >
-              Connect Gmail
-            </a>
-          </div>
-        )}
-      </div>
+        </nav>
 
-      <form
-            className="space-y-4 rounded-2xl bg-card p-5 ring-1 ring-foreground/10 sm:p-6"
+        {composing ? (
+          <form
+            className="flex min-w-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault()
               startSend()
             }}
           >
-            <div>
-              <h3 className="font-heading text-2xl">New application</h3>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Use the contact email on the job posting and paste the cover letter you tailored for it.
-              </p>
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <h3 className="text-sm font-medium">New message</h3>
+              <button type="button" className="text-sm text-muted-foreground hover:text-foreground" onClick={() => setComposing(false)}>
+                Close
+              </button>
             </div>
-            {formError ? (
-              <Alert variant="destructive">
-                <AlertTitle>Couldn&apos;t send</AlertTitle>
-                <AlertDescription>{formError}</AlertDescription>
-              </Alert>
-            ) : null}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="jobCompany">Company</Label>
-                <Input id="jobCompany" className="h-10" value={form.company} onChange={(event) => update("company", event.target.value)} />
+            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+              {formError ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Couldn&apos;t send</AlertTitle>
+                  <AlertDescription>{formError}</AlertDescription>
+                </Alert>
+              ) : null}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Company" id="jobCompany">
+                  <Input id="jobCompany" className="h-10" value={form.company} onChange={(event) => update("company", event.target.value)} />
+                </Field>
+                <Field label="Job title" id="jobTitle">
+                  <Input id="jobTitle" className="h-10" value={form.title} onChange={(event) => update("title", event.target.value)} />
+                </Field>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="jobTitle">Job title</Label>
-                <Input id="jobTitle" className="h-10" value={form.title} onChange={(event) => update("title", event.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="jobContact">Contact email</Label>
+              <div className="flex items-center gap-3 border-b border-white/10 py-2">
+                <Label htmlFor="jobContact" className="w-16 text-muted-foreground">To</Label>
                 <Input
                   id="jobContact"
-                  className="h-10"
+                  className="h-10 border-0 bg-transparent shadow-none"
                   type="email"
                   autoComplete="off"
+                  placeholder="Contact email"
                   value={form.contactEmail}
                   onChange={(event) => update("contactEmail", event.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="jobResume">Resume</Label>
+              <div className="flex items-center gap-3 border-b border-white/10 py-2">
+                <Label htmlFor="jobSubject" className="w-16 text-muted-foreground">Subject</Label>
+                <Input
+                  id="jobSubject"
+                  className="h-10 border-0 bg-transparent shadow-none"
+                  placeholder={form.title && form.company ? `Application for ${form.title} at ${form.company}` : "Application for the role"}
+                  value={form.subject}
+                  onChange={(event) => update("subject", event.target.value)}
+                />
+              </div>
+              <Textarea
+                id="jobLetter"
+                className="min-h-48 border-0 bg-transparent shadow-none"
+                value={form.coverLetter}
+                onChange={(event) => update("coverLetter", event.target.value)}
+                placeholder="Write the cover letter. The resume is attached."
+              />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Label htmlFor="jobResume" className="text-muted-foreground">Attachment</Label>
                 <select
                   id="jobResume"
-                  className="h-10 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="h-10 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:max-w-sm"
                   value={form.resumeId}
                   onChange={(event) => update("resumeId", event.target.value)}
                 >
@@ -316,101 +387,144 @@ export function ApplicationsPanel({
                   ))}
                 </select>
               </div>
+              {resumes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Upload a resume before you can attach one.</p>
+              ) : null}
+              {!gmail?.connected ? (
+                <a href="/api/gmail/connect" className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline md:hidden">
+                  Connect Gmail
+                </a>
+              ) : null}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="jobSubject">Subject</Label>
-              <Input
-                id="jobSubject"
-                className="h-10"
-                placeholder={form.title && form.company ? `Application for ${form.title} at ${form.company}` : "Application for the role"}
-                value={form.subject}
-                onChange={(event) => update("subject", event.target.value)}
-              />
+            <div className="border-t border-white/10 px-4 py-3">
+              <Button type="submit" className="h-10 rounded-full px-5">
+                Send from Gmail
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="jobLetter">Cover letter</Label>
-              <Textarea
-                id="jobLetter"
-                className="min-h-40"
-                value={form.coverLetter}
-                onChange={(event) => update("coverLetter", event.target.value)}
-                placeholder="Paste the letter you want the contact to read. The resume goes out as an attachment."
-              />
-            </div>
-            {resumes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Upload a resume before you can attach one.</p>
-            ) : null}
-            <Button type="submit" className="h-10 px-4">
-              Send from Gmail
-            </Button>
           </form>
-
-          {applications.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border bg-card px-4 py-10 text-center">
-              <h3 className="font-heading text-2xl">No applications yet</h3>
-              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                Add a job&apos;s contact email, choose a resume, and send the cover letter. Reply status shows here
-                after Gmail has a thread to watch.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-xl bg-card ring-1 ring-foreground/10">
-              <table className="w-full min-w-[760px] text-left text-sm">
-                <thead className="border-b border-border text-xs tracking-wide text-muted-foreground uppercase">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Role</th>
-                    <th className="px-4 py-3 font-medium">Company</th>
-                    <th className="px-4 py-3 font-medium">Contact</th>
-                    <th className="px-4 py-3 font-medium">Reply</th>
-                    <th className="px-4 py-3 font-medium">Sent</th>
-                    <th className="px-4 py-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {applications.map((item) => (
-                    <tr key={item.id} className="border-b border-border align-top last:border-0">
-                      <td className="px-4 py-3 font-medium">{item.title}</td>
-                      <td className="px-4 py-3">{item.company}</td>
-                      <td className="max-w-48 truncate px-4 py-3 text-muted-foreground">{item.contactEmail}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant={item.replyStatus === "replied" ? "default" : "outline"}>
-                          {replyLabel(item.replyStatus)}
-                        </Badge>
-                        {item.replyStatus === "replied" && item.replyFrom ? (
-                          <p className="mt-2 max-w-64 text-muted-foreground">
-                            {item.replyFrom}
-                            {item.replySnippet ? ` — ${item.replySnippet}` : ""}
-                          </p>
-                        ) : null}
-                        {item.status === "send_failed" && item.lastError ? (
-                          <p className="mt-2 max-w-64 text-destructive">{item.lastError}</p>
-                        ) : null}
-                        {item.replyStatus === "check_failed" && item.lastError ? (
-                          <p className="mt-2 max-w-64 text-destructive">{item.lastError}</p>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                        {item.sentAt ? formatWhen(item.sentAt) : "Not sent"}
-                        {item.resumeFileName ? <p className="mt-1 max-w-36 truncate">{item.resumeFileName}</p> : null}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          {item.status !== "sent" ? (
-                            <Button type="button" className="h-8" onClick={() => void retry(item.id)}>
-                              Retry send
-                            </Button>
-                          ) : null}
-                          <Button type="button" variant="ghost" className="h-8" onClick={() => void remove(item.id)}>
-                            Remove
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
+        ) : (
+          <>
+            <div className={cn("flex min-w-0 flex-col border-white/10 md:w-[340px] md:shrink-0 md:border-r", showReader ? "hidden md:flex" : "flex flex-1 md:flex-none")}>
+              <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
+                <p className="text-sm font-medium">{folders.find((item) => item.id === folder)?.label}</p>
+                {!gmail?.connected ? (
+                  <a
+                    href="/api/gmail/connect"
+                    className="inline-flex h-8 shrink-0 items-center rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground md:hidden"
+                  >
+                    Connect Gmail
+                  </a>
+                ) : null}
+                {gmail?.connected && sentCount > 0 ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                    disabled={checking}
+                    onClick={() => {
+                      setChecking(true)
+                      void onReload(true).finally(() => setChecking(false))
+                    }}
+                  >
+                    <RefreshCw className={cn("size-3.5", checking && "animate-spin")} />
+                    {checking ? "Checking replies…" : "Check for replies"}
+                  </button>
+                ) : null}
+              </div>
+              {visible.length === 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
+                  <h3 className="font-heading text-2xl">{folder === "inbox" ? "No applications yet" : `Nothing in ${folders.find((item) => item.id === folder)?.label}`}</h3>
+                  <p className="mt-2 max-w-xs text-sm leading-6 text-muted-foreground">
+                    Compose a message with the job contact, a cover letter, and a saved resume.
+                  </p>
+                </div>
+              ) : (
+                <ul className="min-h-0 flex-1 overflow-y-auto">
+                  {visible.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => openMessage(item.id)}
+                        className={cn(
+                          "flex w-full gap-3 border-b border-white/8 px-3 py-3 text-left hover:bg-white/5",
+                          selectedId === item.id && "bg-white/10",
+                          item.replyStatus === "replied" && "font-medium",
+                        )}
+                      >
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm">
+                          {(item.company.trim()[0] || "?").toUpperCase()}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-baseline justify-between gap-2">
+                            <span className="truncate text-sm">{item.company}</span>
+                            <span className="shrink-0 text-[11px] font-normal text-muted-foreground">
+                              {formatWhen(item.sentAt || item.updatedAt)}
+                            </span>
+                          </span>
+                          <span className="block truncate text-sm">{subjectLine(item)}</span>
+                          <span className="block truncate text-xs font-normal text-muted-foreground">
+                            {replyLabel(item.replyStatus)} · {snippet(item.coverLetter) || item.contactEmail}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
                   ))}
-                </tbody>
-              </table>
+                </ul>
+              )}
             </div>
-          )}
+
+            <div className={cn("min-w-0 flex-1 flex-col", showReader ? "flex" : "hidden md:flex")}>
+              {selected ? (
+                <article className="flex min-h-0 flex-1 flex-col">
+                  <div className="flex items-start gap-2 border-b border-white/10 px-4 py-3">
+                    <button type="button" className="mt-1 md:hidden" aria-label="Back to messages" onClick={() => setSelectedId(null)}>
+                      <ArrowLeft className="size-5" />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-xl font-semibold tracking-tight">{subjectLine(selected)}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        To {selected.contactEmail}
+                        {gmail?.email ? ` · From ${gmail.email}` : ""}
+                      </p>
+                    </div>
+                    <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="Remove application" onClick={() => void remove(selected.id)}>
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                  <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+                    <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{replyLabel(selected.replyStatus)}</p>
+                    <p className="whitespace-pre-wrap text-sm leading-6">{selected.coverLetter}</p>
+                    <p className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-sm">
+                      <FileText className="size-4" />
+                      {selected.resumeFileName || "Resume removed"}
+                    </p>
+                    {selected.replyStatus === "replied" && selected.replyFrom ? (
+                      <div className="rounded-xl border border-white/10 bg-background/40 p-4">
+                        <p className="text-sm font-medium">Reply from {selected.replyFrom}</p>
+                        {selected.replySnippet ? <p className="mt-2 text-sm leading-6">{selected.replySnippet}</p> : null}
+                      </div>
+                    ) : null}
+                    {selected.status === "send_failed" && selected.lastError ? (
+                      <p className="text-sm leading-6 text-destructive">{selected.lastError}</p>
+                    ) : null}
+                    {selected.replyStatus === "check_failed" && selected.lastError ? (
+                      <p className="text-sm leading-6 text-destructive">{selected.lastError}</p>
+                    ) : null}
+                    {selected.status !== "sent" ? (
+                      <Button type="button" className="h-9 rounded-full" onClick={() => void retry(selected.id)}>
+                        Retry send
+                      </Button>
+                    ) : null}
+                  </div>
+                </article>
+              ) : (
+                <div className="hidden flex-1 items-center justify-center px-6 text-center text-sm text-muted-foreground md:flex">
+                  Select a message, or compose a new one.
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
       <Dialog open={confirming} onOpenChange={setConfirming}>
         <DialogContent>
@@ -432,5 +546,14 @@ export function ApplicationsPanel({
         </DialogContent>
       </Dialog>
     </section>
+  )
+}
+
+function Field({ label, id, children }: { label: string; id: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      {children}
+    </div>
   )
 }
