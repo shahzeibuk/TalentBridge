@@ -66,7 +66,7 @@ Confirming a resume saves it and copies the confirmed fields onto the user’s p
 
 ## Job postings
 
-Paste a job posting URL on the dashboard. TalentBridge fetches that page and saves the title, company, and description on your account, listed next to your resumes. If the site blocks the fetch, times out, or doesn't include a readable description, the page shows the error and a form where you paste the posting yourself.
+The dashboard has a tab for each area: profile, resumes, job postings, and applications. Paste a job posting URL on the Job postings tab. TalentBridge fetches that page and saves the title, company, and description on your account, listed next to your resumes. If the site blocks the fetch, times out, or doesn't include a readable description, the page shows the error and a form where you paste the posting yourself.
 
 Tailor a resume from a saved posting to line up keywords and phrasing an applicant tracking system looks for. The draft only keeps keywords the source resume already supports. Keywords the posting asks for that aren't in the resume are listed as left out. With `GEMINI_API_KEY` or `GROQ_API_KEY`, the named model rewrites descriptions under that rule. Without a key, or if the model call fails, a local ATS pass does the same keyword match and says an AI model did not produce the draft. Review the draft before you confirm it.
 

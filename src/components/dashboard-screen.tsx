@@ -10,6 +10,7 @@ import { ResumeDetails } from "@/components/resume-details"
 import { ErrorBlock, LoadingBlock } from "@/components/status-block"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { buttonVariants } from "@/components/ui/button"
 import { Button } from "@/components/ui/button"
 import {
@@ -91,6 +92,26 @@ export function DashboardScreen() {
         ? "Profile snapshot replaced with that resume."
         : ""
   const sourceName = resumes.find((resume) => resume.id === profile?.sourceResumeId)?.fileName
+  const requestedTab = searchParams.get("tab")
+  const urlTab =
+    requestedTab === "resumes" || requestedTab === "jobs" || requestedTab === "applications" || requestedTab === "profile"
+      ? requestedTab
+      : searchParams.get("gmail")
+        ? "applications"
+        : "profile"
+  const [tab, setTab] = useState(urlTab)
+  const [syncedTab, setSyncedTab] = useState(urlTab)
+  if (syncedTab !== urlTab) {
+    setSyncedTab(urlTab)
+    setTab(urlTab)
+  }
+
+  function selectTab(value: string) {
+    setTab(value)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("tab", value)
+    router.replace(`/dashboard?${params.toString()}`, { scroll: false })
+  }
 
   return (
     <div className="space-y-10">
@@ -117,9 +138,21 @@ export function DashboardScreen() {
       {status === "error" ? <ErrorBlock message={error} onRetry={() => void load()} /> : null}
 
       {status === "ready" ? (
-        <>
-          <ApplicationsPanel resumes={resumes} />
+        <Tabs
+          value={tab}
+          onValueChange={(value, details) => {
+            if (details.reason !== "none") return
+            selectTab(String(value))
+          }}
+        >
+          <TabsList>
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="resumes">Resumes</TabsTrigger>
+            <TabsTrigger value="jobs">Job postings</TabsTrigger>
+            <TabsTrigger value="applications">Applications</TabsTrigger>
+          </TabsList>
 
+          <TabsContent value="profile" keepMounted>
           <section className="space-y-4">
             <div>
               <h2 className="font-heading text-3xl tracking-tight">Your profile</h2>
@@ -147,8 +180,9 @@ export function DashboardScreen() {
             )}
             </div>
           </section>
+          </TabsContent>
 
-          <div className="grid min-w-0 items-start gap-10 lg:grid-cols-2">
+          <TabsContent value="resumes" keepMounted>
           <section className="min-w-0 space-y-4">
             <div className="flex items-baseline justify-between gap-3">
               <h2 className="font-heading text-3xl tracking-tight">Resumes</h2>
@@ -217,9 +251,16 @@ export function DashboardScreen() {
               </ul>
             )}
           </section>
-          <JobsPanel resumes={resumes} />
-          </div>
-        </>
+          </TabsContent>
+
+          <TabsContent value="jobs" keepMounted>
+            <JobsPanel resumes={resumes} />
+          </TabsContent>
+
+          <TabsContent value="applications" keepMounted>
+            <ApplicationsPanel resumes={resumes} />
+          </TabsContent>
+        </Tabs>
       ) : null}
 
       <Dialog open={target !== null} onOpenChange={(open) => { if (!open) setTarget(null) }}>
