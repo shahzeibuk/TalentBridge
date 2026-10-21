@@ -7,7 +7,7 @@ import { toast } from "sonner"
 import { AnalyticsBoard } from "@/components/analytics-board"
 import { ApplicationsPanel } from "@/components/applications-panel"
 import { JobsPanel } from "@/components/jobs-panel"
-import { ResumeDetails } from "@/components/resume-details"
+import { ResumeTemplate } from "@/components/resume-template"
 import { ErrorBlock, LoadingBlock } from "@/components/status-block"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -166,31 +166,37 @@ export function DashboardScreen() {
 
           <div hidden={tab !== "profile"}>
           <section className="space-y-4">
-            <div>
-              <h2 className="font-heading text-3xl tracking-tight">Your profile</h2>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                This snapshot updates when you confirm a resume or choose Set as my profile.
-              </p>
-            </div>
-            <div className="rounded-2xl bg-card p-5 ring-1 ring-foreground/10 sm:p-7">
-            {profile ? (
-              <div className="space-y-6">
-                <p className="text-sm text-muted-foreground">
-                  {sourceName
-                    ? `Snapshot from ${sourceName}, updated ${formatWhen(profile.updatedAt)}.`
-                    : `Snapshot updated ${formatWhen(profile.updatedAt)}.`}
+            <div className="flex flex-col gap-3 print:hidden sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="font-heading text-3xl tracking-tight">Your profile</h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                  This snapshot updates when you confirm a resume or choose Set as my profile. It is laid out as a
+                  professional resume.
                 </p>
-                <ResumeDetails data={profile} />
+                {profile ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {sourceName
+                      ? `Snapshot from ${sourceName}, updated ${formatWhen(profile.updatedAt)}.`
+                      : `Snapshot updated ${formatWhen(profile.updatedAt)}.`}
+                  </p>
+                ) : null}
               </div>
+              {profile ? (
+                <Button type="button" variant="outline" className="h-10" onClick={() => window.print()}>
+                  Print template
+                </Button>
+              ) : null}
+            </div>
+            {profile ? (
+              <ResumeTemplate data={profile} />
             ) : (
-              <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+              <div className="rounded-xl border border-dashed border-border bg-card px-4 py-10 text-center">
                 <h3 className="font-heading text-2xl">No profile yet</h3>
                 <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
                   Confirm a resume and TalentBridge copies the name, contact details, jobs, education, and skills here.
                 </p>
               </div>
             )}
-            </div>
           </section>
           </div>
 

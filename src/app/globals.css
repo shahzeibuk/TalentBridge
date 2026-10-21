@@ -117,6 +117,17 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+@media print {
+  .admin-theme {
+    display: block !important;
+    background: white !important;
+  }
+  .resume-sheet {
+    box-shadow: none !important;
+    max-width: none !important;
+  }
+}
+
 .admin-theme {
   --background: oklch(0.16 0.03 285);
   --foreground: oklch(0.96 0.012 285);

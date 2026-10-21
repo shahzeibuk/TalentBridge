@@ -62,7 +62,7 @@ The extracted text is parsed into name, contact, work experience, education, and
 - **Groq** (`AI_PROVIDER=groq` and `GROQ_API_KEY`): `openai/gpt-oss-20b` via Groq’s chat completions API. The review screen names Groq and that model.
 - **Local fallback**: used when `AI_PROVIDER=fallback`, when the chosen API key is missing, when the provider name is unknown, or when the provider call fails. The draft is built from headings, dates, and contact lines in the file. The review screen is titled “Local fallback extractor” and states that an AI model did not produce the draft.
 
-Confirming a resume saves it and copies the confirmed fields onto the user’s profile. Editing a saved resume updates that resume only. “Set as my profile” copies the resume onto the profile again. Deleting a resume leaves the profile snapshot in place.
+Confirming a resume saves it and copies the confirmed fields onto the user’s profile. Editing a saved resume updates that resume only. “Set as my profile” copies the resume onto the profile again. Deleting a resume leaves the profile snapshot in place. A saved resume and the profile snapshot render in a professional one-page template. Print or save PDF uses the browser print dialog and leaves the app chrome off the page.
 
 ## Job postings
 

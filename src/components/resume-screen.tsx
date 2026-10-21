@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ResumeDetails } from "@/components/resume-details"
+import { ResumeTemplate } from "@/components/resume-template"
 import { ResumeForm } from "@/components/resume-form"
 import { ErrorBlock, LoadingBlock } from "@/components/status-block"
 import { Badge } from "@/components/ui/badge"
@@ -113,8 +113,8 @@ export function ResumeScreen({ id, mode }: { id: string; mode: "view" | "edit" |
         : resume.fileName
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mx-auto w-full max-w-[860px] space-y-6">
+      <div className="flex flex-col gap-3 print:hidden sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">{resume.fileName}</p>
           <h1 className="mt-1 font-heading text-4xl tracking-tight">{title}</h1>
@@ -140,6 +140,9 @@ export function ResumeScreen({ id, mode }: { id: string; mode: "view" | "edit" |
             <a href={`/api/resumes/${resume.id}/file`} className={cn(buttonVariants({ variant: "outline" }), "h-10 px-4")}>
               Download original
             </a>
+            <Button type="button" variant="outline" className="h-10" onClick={() => window.print()}>
+              Print template
+            </Button>
             <Button type="button" variant="outline" className="h-10" disabled={pending !== null} onClick={() => void setProfile()}>
               {pending === "profile" ? "Updating profile…" : "Set as my profile"}
             </Button>
@@ -151,21 +154,32 @@ export function ResumeScreen({ id, mode }: { id: string; mode: "view" | "edit" |
       </div>
 
       {mode === "view" ? (
-        <div className="rounded-2xl bg-card p-5 ring-1 ring-foreground/10 sm:p-7">
-          {resume.parseSource === "fallback" ? (
-            <p className="mb-6 text-sm leading-6 text-muted-foreground">
-              {draftHeading(resume.parseSource, resume.parseNote)}. This draft did not come from an AI model.{" "}
-              {resume.parseNote}
-            </p>
-          ) : (
-            <p className="mb-6 text-sm leading-6 text-muted-foreground">
-              {draftHeading(resume.parseSource, resume.parseNote)}. {resume.parseNote}
-            </p>
-          )}
-          <ResumeDetails data={resume} />
+        <div className="space-y-4">
+          <p className="print:hidden text-sm leading-6 text-muted-foreground">
+            {draftHeading(resume.parseSource, resume.parseNote)}.{" "}
+            {resume.parseSource === "fallback" ? "This draft did not come from an AI model. " : ""}
+            {resume.parseNote}
+          </p>
+          <ResumeTemplate data={resume} />
         </div>
       ) : (
-        <ResumeForm key={resume.updatedAt} resume={resume} mode={mode === "edit" ? "edit" : "review"} />
+        <>
+          <div className="print:hidden">
+            <ResumeForm key={resume.updatedAt} resume={resume} mode={mode === "edit" ? "edit" : "review"} />
+          </div>
+          <div className="space-y-3">
+            <div className="print:hidden">
+              <h2 className="text-lg font-semibold tracking-tight">Professional template</h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                The saved draft, set as a one-page resume. Print or save PDF from the browser when you want a copy.
+              </p>
+              <Button type="button" variant="outline" className="mt-3 h-10" onClick={() => window.print()}>
+                Print template
+              </Button>
+            </div>
+            <ResumeTemplate data={resume} />
+          </div>
+        </>
       )}
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>

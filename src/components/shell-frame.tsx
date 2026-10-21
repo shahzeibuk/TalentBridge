@@ -44,7 +44,7 @@ export function ShellFrame({
         ) : null}
         <aside
           className={cn(
-            "fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-white/8 bg-[oklch(0.14_0.03_285)] lg:static lg:z-auto",
+            "fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-white/8 bg-[oklch(0.14_0.03_285)] print:hidden lg:static lg:z-auto",
             menuOpen ? "flex" : "hidden lg:flex",
           )}
         >
@@ -96,8 +96,8 @@ export function ShellFrame({
           </form>
         </aside>
         <div className="relative min-w-0">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(ellipse_at_top,oklch(0.4_0.14_292/0.35),transparent_68%)]" />
-          <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-white/8 bg-background/80 px-4 backdrop-blur">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(ellipse_at_top,oklch(0.4_0.14_292/0.35),transparent_68%)] print:hidden" />
+          <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-white/8 bg-background/80 px-4 backdrop-blur print:hidden">
             <button type="button" className="lg:hidden" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
               <Menu className="size-5" />
             </button>
