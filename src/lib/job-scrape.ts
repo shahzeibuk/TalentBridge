@@ -104,6 +104,11 @@ async function fetchPinned(url: URL, ip: string): Promise<PageResult> {
 
 type LookupAll = (hostname: string, options: { all: true; verbatim: true }) => Promise<{ address: string }[]>
 
+type FetchDeps = {
+  lookupImpl?: LookupAll
+  fetchPage?: (url: URL, ip: string) => Promise<PageResult>
+}
+
 export async function assertPublicUrl(raw: string, lookupImpl: LookupAll = lookup) {
   let url: URL
   try {
@@ -161,6 +166,20 @@ function htmlToText(html: string) {
       .replace(/[ \t]{2,}/g, " ")
       .trim(),
   )
+}
+
+function descriptionFromHtml(html: string) {
+  const marker = html.search(/job-description/i)
+  if (marker >= 0) {
+    const tagEnd = html.indexOf(">", marker)
+    const rest = html.slice(tagEnd >= 0 ? tagEnd + 1 : marker)
+    const end = rest.search(/custom-css-section-footer|id=["']__NEXT_DATA__["']/i)
+    const text = htmlToText(end > 0 ? rest.slice(0, end) : rest.slice(0, 80_000))
+    if (text.length >= 80) return text
+  }
+  const heading = html.search(/<h1[\s>]/i)
+  const region = heading >= 0 ? html.slice(heading) : html
+  return htmlToText(region)
 }
 
 function metaContent(html: string, key: string) {
@@ -222,10 +241,7 @@ export function extractJobPosting(html: string) {
     title = htmlToText(h1?.[1] || "") || metaContent(html, "og:title")
   }
   if (!company) company = metaContent(html, "og:site_name")
-  if (!description) {
-    const main = html.match(/<(?:main|article)[^>]*>([\s\S]*?)<\/(?:main|article)>/i)
-    description = htmlToText(main?.[1] || html)
-  }
+  if (!description) description = descriptionFromHtml(html)
   title = title.replace(/\s+/g, " ").trim()
   const split = title.match(/^(.*?)\s+at\s+([^|–—-]+)$/i)
   if (split && !company) {
@@ -244,10 +260,95 @@ function looksBlocked(text: string) {
   return /access denied|just a moment|enable javascript|captcha|are you a robot|request blocked/i.test(text.slice(0, 500))
 }
 
-export async function scrapeJobUrl(
-  raw: string,
-  deps?: { lookupImpl?: LookupAll; fetchPage?: (url: URL, ip: string) => Promise<PageResult> },
-) {
+function textField(node: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = node[key]
+    if (typeof value === "string" && value.trim()) return value.trim()
+  }
+  return ""
+}
+
+export type ListedJob = { title: string; company: string; description: string; url: string }
+
+function listedFromOpening(node: Record<string, unknown>): ListedJob | null {
+  const title = textField(node, ["roleTitle", "title", "jobTitle"]).replace(/\s+/g, " ")
+  const company = (orgName(node.company) || orgName(node.hiringOrganization) || textField(node, ["companyName"])).replace(/\s+/g, " ")
+  const url = textField(node, ["url", "applyUrl", "jobUrl"])
+  const summary = textField(node, ["twoLineJobDescriptionSummary", "jobDescriptionSummary", "description"])
+  const location = typeof node.location === "string" ? node.location.trim() : ""
+  const employment = textField(node, ["employmentType"]).replace(/-/g, " ")
+  const salary = node.salaryRange
+  const pay =
+    salary && typeof salary === "object" && "salaryHumanReadableText" in salary && typeof salary.salaryHumanReadableText === "string"
+      ? salary.salaryHumanReadableText.trim()
+      : ""
+  const description = [summary, location && `Location: ${location}`, employment && `Type: ${employment}`, pay && `Pay: ${pay}`]
+    .filter(Boolean)
+    .join("\n")
+  if (!title || !company || !/^https?:\/\//i.test(url)) return null
+  return {
+    title: title.slice(0, 160),
+    company: company.slice(0, 160),
+    description: htmlToText(description).slice(0, 40_000),
+    url,
+  }
+}
+
+export function extractListedJobs(html: string): ListedJob[] {
+  const next = html.match(/<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i)
+  if (next) {
+    try {
+      const parsed = JSON.parse(next[1]) as { props?: { pageProps?: { initialJobOpenings?: unknown } } }
+      const openings = parsed.props?.pageProps?.initialJobOpenings
+      if (Array.isArray(openings)) {
+        const jobs = uniqueListed(openings)
+        if (jobs.length >= 2) return jobs.slice(0, 12)
+      }
+    } catch {
+      // A page can still be a single posting when this script isn't job data.
+    }
+  }
+  const postings: Record<string, unknown>[] = []
+  for (const node of jsonLdNodes(html)) {
+    if (!typesOf(node).some((type) => type.toLowerCase() === "jobposting")) continue
+    postings.push({
+      title: node.title,
+      hiringOrganization: node.hiringOrganization,
+      url: node.url,
+      description: typeof node.description === "string" ? htmlToText(node.description) : "",
+    })
+  }
+  const jobs = uniqueListed(postings)
+  return jobs.length >= 2 ? jobs.slice(0, 12) : []
+}
+
+function uniqueListed(items: unknown[]) {
+  const jobs: ListedJob[] = []
+  const seen = new Set<string>()
+  for (const item of items) {
+    if (!item || typeof item !== "object") continue
+    const job = listedFromOpening(item as Record<string, unknown>)
+    if (!job || seen.has(job.url)) continue
+    seen.add(job.url)
+    jobs.push(job)
+  }
+  return jobs
+}
+
+function requirePosting(extracted: { title: string; company: string; description: string }) {
+  if (extracted.description.length < 80 || looksBlocked(extracted.description) || !extracted.title) {
+    throw new ScrapeError(
+      "The page didn't include a job description we could read. Paste the title, company, and description instead.",
+      extracted,
+    )
+  }
+  if (!extracted.company) {
+    throw new ScrapeError("The page didn't include a company name. Add it below, along with anything else to correct.", extracted)
+  }
+  return extracted
+}
+
+async function readPage(raw: string, deps?: FetchDeps) {
   let current = raw.trim()
   const fetchPage = deps?.fetchPage ?? fetchPinned
   for (let hop = 0; hop < 4; hop += 1) {
@@ -269,17 +370,58 @@ export async function scrapeJobUrl(
     if (contentType && !/html|text\/plain|xml/i.test(contentType)) {
       throw new ScrapeError("That page isn't readable text. Paste the job description instead.")
     }
-    const extracted = extractJobPosting(page.body)
-    if (extracted.description.length < 80 || looksBlocked(extracted.description) || !extracted.title) {
-      throw new ScrapeError(
-        "The page didn't include a job description we could read. Paste the title, company, and description instead.",
-        extracted,
-      )
-    }
-    if (!extracted.company) {
-      throw new ScrapeError("The page didn't include a company name. Add it below, along with anything else to correct.", extracted)
-    }
-    return extracted
+    return { finalUrl: url.toString(), body: page.body }
   }
   throw new ScrapeError("That link redirected too many times. Paste the job description instead.")
+}
+
+export async function scrapeJobUrl(raw: string, deps?: FetchDeps) {
+  const page = await readPage(raw, deps)
+  return requirePosting(extractJobPosting(page.body))
+}
+
+export type ImportedJob = { title: string; company: string; description: string; sourceUrl: string }
+
+export async function importJobsFromUrl(raw: string, deps?: FetchDeps): Promise<ImportedJob[]> {
+  const page = await readPage(raw, deps)
+  const listed = extractListedJobs(page.body)
+  if (listed.length >= 2) {
+    const settled: (ImportedJob | null)[] = listed.map(() => null)
+    let cursor = 0
+    async function worker() {
+      while (cursor < listed.length) {
+        const index = cursor
+        cursor += 1
+        const item = listed[index]
+        try {
+          const full = await scrapeJobUrl(item.url, deps)
+          settled[index] = {
+            title: item.title || full.title,
+            company: item.company || full.company,
+            description: full.description.length >= item.description.length ? full.description : item.description,
+            sourceUrl: item.url,
+          }
+        } catch {
+          if (item.description.length >= 80 && !looksBlocked(item.description)) {
+            settled[index] = {
+              title: item.title,
+              company: item.company,
+              description: item.description,
+              sourceUrl: item.url,
+            }
+          }
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(4, listed.length) }, () => worker()))
+    const jobs = settled.filter((job): job is ImportedJob => job !== null)
+    if (jobs.length === 0) {
+      throw new ScrapeError(
+        "That page lists jobs, but none included a description we could read. Open one posting and paste that link, or paste the description.",
+      )
+    }
+    return jobs
+  }
+  const one = requirePosting(extractJobPosting(page.body))
+  return [{ ...one, sourceUrl: page.finalUrl }]
 }

@@ -1,4 +1,4 @@
-import { extractJobPosting, isPrivateAddress, scrapeJobUrl, ScrapeError } from "./job-scrape"
+import { extractJobPosting, extractListedJobs, importJobsFromUrl, isPrivateAddress, scrapeJobUrl, ScrapeError } from "./job-scrape"
 import { applyAtsPass, jobKeywords } from "./tailor-resume"
 import type { ResumeData } from "./resume-data"
 
@@ -84,6 +84,30 @@ if (tailored.data.skills.some((item) => /kubernetes/i.test(item))) throw new Err
 if (!tailored.data.skills.some((item) => /design systems/i.test(item))) throw new Error("design systems was not added")
 if (!tailored.data.experience[0].description.includes("design systems")) throw new Error("phrasing was not kept")
 if (tailored.data.experience[0].company !== "Northwind Labs") throw new Error("employer changed")
+
+const listing = `<!doctype html><html><body><main></main><script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"initialJobOpenings":[
+{"roleTitle":"Product Designer","company":{"name":"Minerva Project"},"url":"https://jobs.example/minerva","twoLineJobDescriptionSummary":"Product Designer creating accessible software for a global higher-education platform and the workflows students use.","location":"Worldwide"},
+{"roleTitle":"UI/UX Designer","company":{"name":"Huzzle"},"url":"https://jobs.example/huzzle","twoLineJobDescriptionSummary":"UI/UX Designer owning end-to-end design for an international company and its digital products across web and mobile.","location":"Remote"}
+]}}}</script></body></html>`
+const listed = extractListedJobs(listing)
+if (listed.length !== 2 || listed[0].company !== "Minerva Project") throw new Error(`list extract ${JSON.stringify(listed)}`)
+
+const imported = await importJobsFromUrl("https://board.example/ux", {
+  lookupImpl: async () => [{ address: "93.184.216.34", family: 4 }],
+  fetchPage: async (url) => {
+    if (url.hostname === "board.example") return { status: 200, headers: { "content-type": "text/html" }, body: listing }
+    if (url.pathname === "/minerva") return { status: 200, headers: { "content-type": "text/html" }, body: html }
+    return { status: 403, headers: { "content-type": "text/html" }, body: "blocked" }
+  },
+})
+if (imported.length !== 2) throw new Error(`import count ${imported.length}`)
+if (imported[0].company !== "Minerva Project" || imported[0].sourceUrl !== "https://jobs.example/minerva") {
+  throw new Error(`child scrape ${JSON.stringify(imported[0])}`)
+}
+if (!imported[0].description.includes("hiring workspace")) throw new Error("full description was dropped")
+if (imported[1].company !== "Huzzle" || !imported[1].description.includes("Location: Remote")) {
+  throw new Error(`summary fallback ${JSON.stringify(imported[1])}`)
+}
 
 console.log("job posting helpers ok")
 }

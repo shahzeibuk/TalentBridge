@@ -62,9 +62,18 @@ export function JobsPanel({
     }
     setImporting(true)
     try {
-      await api("/api/jobs/import", { method: "POST", body: JSON.stringify({ url: url.trim() }) })
+      const result = await api<{ jobs: unknown[]; alreadySaved?: number }>("/api/jobs/import", {
+        method: "POST",
+        body: JSON.stringify({ url: url.trim() }),
+      })
       setUrl("")
-      toast.success("Job posting saved from that page.")
+      if (result.jobs.length === 0) {
+        toast.success("Those postings are already on your account.")
+      } else if (result.jobs.length === 1) {
+        toast.success("Job posting saved from that page.")
+      } else {
+        toast.success(`Saved ${result.jobs.length} job postings from that page.`)
+      }
       await onReload()
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "We couldn't read that page."
@@ -139,8 +148,8 @@ export function JobsPanel({
       <div>
         <h2 className="font-heading text-3xl tracking-tight">Job postings</h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Paste a posting URL. TalentBridge reads that page for the title, company, and description, and keeps it on
-          your account.
+          Paste one job link, or a page that lists openings. TalentBridge reads that page and saves each role it can
+          find on your account.
         </p>
       </div>
 
