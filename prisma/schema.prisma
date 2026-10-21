@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  profile      Profile?
+  resumes      Resume[]
+}
+
+model Profile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName       String   @default("")
+  email          String   @default("")
+  phone          String   @default("")
+  location       String   @default("")
+  links          Json     @default("[]")
+  experience     Json     @default("[]")
+  education      Json     @default("[]")
+  skills         Json     @default("[]")
+  sourceResumeId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Resume {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileName      String
+  mimeType      String
+  fileBytes     Bytes
+  extractedText String   @db.Text
+  status        String   @default("draft")
+  fullName      String   @default("")
+  email         String   @default("")
+  phone         String   @default("")
+  location      String   @default("")
+  links         Json     @default("[]")
+  experience    Json     @default("[]")
+  education     Json     @default("[]")
+  skills        Json     @default("[]")
+  parseSource   String
+  parseNote     String   @default("") @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+}
