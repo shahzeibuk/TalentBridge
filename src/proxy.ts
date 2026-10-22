@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { appOrigin } from "@/lib/origin"
 import { readSessionFromToken, SESSION_COOKIE } from "@/lib/session-token"
 
 export async function proxy(request: NextRequest) {
@@ -19,9 +20,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
+  if (pathname === "/" && session) {
+    return NextResponse.redirect(`${appOrigin(request)}/dashboard`)
+  }
+
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/resumes/:path*", "/login", "/signup"],
+  matcher: ["/", "/dashboard/:path*", "/resumes/:path*", "/login", "/signup"],
 }
