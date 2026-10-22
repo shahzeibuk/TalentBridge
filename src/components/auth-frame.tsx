@@ -1,6 +1,7 @@
-import Link from "next/link"
 import type { ReactNode } from "react"
+import { MarketingHeader } from "@/components/marketing-header"
 
+/** Login and signup layout, using the same dark theme as the landing page. */
 export function AuthFrame({
   title,
   subtitle,
@@ -13,41 +14,20 @@ export function AuthFrame({
   footer: ReactNode
 }) {
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-      <aside className="hidden flex-col justify-between bg-primary px-10 py-12 text-primary-foreground lg:flex">
-        <div>
-          <p className="font-heading text-3xl tracking-tight">TalentBridge</p>
-          <p className="mt-10 max-w-sm font-heading text-4xl leading-tight">
-            Check the resume before it becomes your profile.
-          </p>
-          <p className="mt-4 max-w-sm text-base leading-7 text-primary-foreground/80">
-            Upload a PDF or DOCX, correct the draft, and confirm the snapshot stored with your account.
-          </p>
-        </div>
-        <ol className="space-y-4 text-sm leading-6">
-          <li>
-            <span className="mr-2 font-heading text-lg">1</span>
-            Upload a PDF or DOCX under 4 MB.
-          </li>
-          <li>
-            <span className="mr-2 font-heading text-lg">2</span>
-            Fix the name, jobs, education, and skills.
-          </li>
-          <li>
-            <span className="mr-2 font-heading text-lg">3</span>
-            Confirm to save the resume and refresh your profile.
-          </li>
-        </ol>
-      </aside>
-      <main className="flex flex-col justify-center px-4 py-10 sm:px-8">
-        <div className="mx-auto w-full max-w-md">
-          <Link href="/" className="font-heading text-2xl tracking-tight text-primary lg:hidden">
-            TalentBridge
-          </Link>
-          <h1 className="mt-6 font-heading text-4xl tracking-tight text-foreground">{title}</h1>
-          <p className="mt-3 text-base leading-7 text-muted-foreground">{subtitle}</p>
-          <div className="mt-8">{children}</div>
-          <div className="mt-6 text-sm text-muted-foreground">{footer}</div>
+    <div className="admin-theme min-h-dvh overflow-x-hidden">
+      <MarketingHeader />
+      <main className="relative mx-auto max-w-6xl px-4 pt-10 pb-16 sm:px-6 sm:pt-16">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(ellipse_at_top,oklch(0.4_0.14_292/0.35),transparent_68%)]" />
+        <div className="relative grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)]">
+          <div className="max-w-xl">
+            <p className="text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase">For your own applications</p>
+            <h1 className="mt-4 font-heading text-4xl leading-tight tracking-tight sm:text-5xl">{title}</h1>
+            <p className="mt-5 text-base leading-7 text-muted-foreground">{subtitle}</p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-card px-5 py-8 sm:px-8">
+            {children}
+            <div className="mt-6 text-sm text-muted-foreground">{footer}</div>
+          </div>
         </div>
       </main>
     </div>

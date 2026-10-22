@@ -116,7 +116,7 @@ export function SignupForm() {
             onChange={(event) => setConfirm(event.target.value)}
           />
         </div>
-        <Button type="submit" className="h-10 w-full" disabled={pending}>
+        <Button type="submit" className="h-11 w-full rounded-full" disabled={pending}>
           {pending ? "Creating your account…" : "Create account"}
         </Button>
       </form>

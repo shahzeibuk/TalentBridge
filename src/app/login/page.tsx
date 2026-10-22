@@ -7,7 +7,11 @@ export const metadata = {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<p className="px-4 py-16 text-sm text-muted-foreground">Opening log in…</p>}>
+    <Suspense
+      fallback={
+        <div className="admin-theme min-h-dvh px-4 py-16 text-sm text-muted-foreground">Opening log in…</div>
+      }
+    >
       <LoginForm />
     </Suspense>
   )
