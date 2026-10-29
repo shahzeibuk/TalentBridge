@@ -3,13 +3,14 @@
 import type { ReactNode } from "react"
 import { Briefcase, FileText, Mail, Send } from "lucide-react"
 import { useAdminUser } from "@/components/admin-user"
+import { DashboardAgent } from "@/components/dashboard-agent"
 import { formatWhen } from "@/lib/format"
 import { buildDashboardMetrics, gmailReadout, type DayBucket } from "@/lib/dashboard-metrics"
 import type { ApplicationItem, GmailAccountStatus } from "@/lib/application-data"
 import type { JobPostingItem } from "@/lib/job-data"
 import type { ProfileSnapshot, ResumeListItem } from "@/lib/resume-data"
 
-type OpenTab = "profile" | "resumes" | "jobs" | "applications"
+type OpenTab = "profile" | "resumes" | "jobs" | "applications" | "ai"
 type SeriesKey = "resumes" | "jobs" | "applications"
 
 const tones = {
@@ -54,6 +55,8 @@ export function AnalyticsBoard({
           {gmailReadout(gmail)}
         </p>
       </div>
+
+      <DashboardAgent onOpen={onOpen} />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
