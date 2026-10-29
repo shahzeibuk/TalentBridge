@@ -96,6 +96,12 @@ function parseModelJson(raw: string) {
   }
 }
 
+const AI_FETCH_TIMEOUT_MS = 50_000
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")
+}
+
 async function geminiJson(system: string, user: string, apiKey: string, fetchImpl: typeof fetch) {
   const makeBody = (includeThinking: boolean) =>
     JSON.stringify({
@@ -107,7 +113,7 @@ async function geminiJson(system: string, user: string, apiKey: string, fetchImp
       ],
       generationConfig: {
         temperature: 0.1,
-        maxOutputTokens: 8192,
+        maxOutputTokens: 4096,
         responseMimeType: "application/json",
         ...(includeThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
       },
@@ -121,24 +127,40 @@ async function geminiJson(system: string, user: string, apiKey: string, fetchImp
         "x-goog-api-key": apiKey,
       },
       body,
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(AI_FETCH_TIMEOUT_MS),
     })
 
-  let response = await send(makeBody(true))
-  if (response.status === 400) response = await send(makeBody(false))
-  if (!response.ok) throw new Error(`Gemini request failed (${response.status}).`)
-
-  const payload = (await response.json()) as {
-    candidates?: { content?: { parts?: { thought?: boolean; text?: string }[] } }[]
+  async function readJson(response: Response) {
+    if (!response.ok) throw new Error(`Gemini request failed (${response.status}).`)
+    const payload = (await response.json()) as {
+      candidates?: { content?: { parts?: { thought?: boolean; text?: string }[] } }[]
+    }
+    const parts = payload.candidates?.[0]?.content?.parts ?? []
+    const textOut = parts
+      .filter((part) => !part.thought)
+      .map((part) => part.text ?? "")
+      .join("")
+      .trim()
+    if (!textOut) throw new Error("Gemini returned an empty response.")
+    return parseModelJson(textOut)
   }
-  const parts = payload.candidates?.[0]?.content?.parts ?? []
-  const textOut = parts
-    .filter((part) => !part.thought)
-    .map((part) => part.text ?? "")
-    .join("")
-    .trim()
-  if (!textOut) throw new Error("Gemini returned an empty response.")
-  return parseModelJson(textOut)
+
+  try {
+    let response = await send(makeBody(true))
+    if (response.status === 400) response = await send(makeBody(false))
+    return await readJson(response)
+  } catch (error) {
+    if (!isAbortError(error)) throw error
+    // One leaner retry without thinking config after a timeout.
+    try {
+      return await readJson(await send(makeBody(false)))
+    } catch (retryError) {
+      if (isAbortError(retryError)) {
+        throw new Error("Gemini timed out. Try again in a moment, or switch to Groq under AI keys.")
+      }
+      throw retryError
+    }
+  }
 }
 
 async function groqJson(system: string, user: string, apiKey: string, fetchImpl: typeof fetch) {
@@ -161,21 +183,28 @@ async function groqJson(system: string, user: string, apiKey: string, fetchImpl:
         "Content-Type": "application/json",
       },
       body,
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(AI_FETCH_TIMEOUT_MS),
     })
 
-  let response = await send(makeBody({ response_format: { type: "json_object" }, reasoning_effort: "low" }))
-  if (response.status === 400) {
-    response = await send(makeBody({ response_format: { type: "json_object" } }))
-  }
-  if (!response.ok) throw new Error(`Groq request failed (${response.status}).`)
+  try {
+    let response = await send(makeBody({ response_format: { type: "json_object" }, reasoning_effort: "low" }))
+    if (response.status === 400) {
+      response = await send(makeBody({ response_format: { type: "json_object" } }))
+    }
+    if (!response.ok) throw new Error(`Groq request failed (${response.status}).`)
 
-  const payload = (await response.json()) as {
-    choices?: { message?: { content?: string } }[]
+    const payload = (await response.json()) as {
+      choices?: { message?: { content?: string } }[]
+    }
+    const content = payload.choices?.[0]?.message?.content?.trim()
+    if (!content) throw new Error("Groq returned an empty response.")
+    return parseModelJson(content)
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error("Groq timed out. Try again in a moment, or switch to Gemini under AI keys.")
+    }
+    throw error
   }
-  const content = payload.choices?.[0]?.message?.content?.trim()
-  if (!content) throw new Error("Groq returned an empty response.")
-  return parseModelJson(content)
 }
 
 export async function completeJson(system: string, user: string, deps: ParseDeps = {}) {
