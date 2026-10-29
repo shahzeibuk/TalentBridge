@@ -32,6 +32,14 @@ export async function POST(request: Request) {
     return jsonError(parsed.error.issues[0]?.message ?? "Check the signup form and try again.", 400)
   }
 
+  const existing = await prisma.user.findUnique({
+    where: { email: parsed.data.email },
+    select: { id: true },
+  })
+  if (existing) {
+    return jsonError("An account with that email already exists. Log in instead.", 409)
+  }
+
   try {
     const user = await prisma.user.create({
       data: {

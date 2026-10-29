@@ -17,11 +17,13 @@ export function SignupForm() {
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
   const [error, setError] = useState("")
+  const [duplicateEmail, setDuplicateEmail] = useState(false)
   const [pending, setPending] = useState(false)
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
     setError("")
+    setDuplicateEmail(false)
     if (!name.trim()) {
       setError("Enter your name.")
       return
@@ -48,7 +50,15 @@ export function SignupForm() {
       router.push("/dashboard")
       router.refresh()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "We couldn't create the account.")
+      const duplicate = caught instanceof ApiError && caught.status === 409
+      setDuplicateEmail(duplicate)
+      setError(
+        duplicate
+          ? "An account with that email already exists."
+          : caught instanceof ApiError
+            ? caught.message
+            : "We couldn't create the account.",
+      )
       setPending(false)
     }
   }
@@ -68,9 +78,18 @@ export function SignupForm() {
     >
       <form className="space-y-4" onSubmit={onSubmit} noValidate>
         {error ? (
-          <Alert variant="destructive">
-            <AlertTitle>Account not created</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
+          <Alert variant="destructive" className="min-w-0">
+            <AlertTitle>{duplicateEmail ? "Email already registered" : "Account not created"}</AlertTitle>
+            <AlertDescription className="min-w-0 text-pretty">
+              {duplicateEmail ? (
+                <>
+                  {error}{" "}
+                  <Link href={`/login?email=${encodeURIComponent(email.trim().toLowerCase())}`}>Log in instead</Link>.
+                </>
+              ) : (
+                error
+              )}
+            </AlertDescription>
           </Alert>
         ) : null}
         <div className="space-y-2">

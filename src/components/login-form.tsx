@@ -14,7 +14,7 @@ import { ApiError, api } from "@/lib/http"
 export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [email, setEmail] = useState("")
+  const [email, setEmail] = useState(() => searchParams.get("email")?.trim() ?? "")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [pending, setPending] = useState(false)
