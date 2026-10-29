@@ -29,12 +29,16 @@ export async function POST(request: Request) {
   try {
     const result = await probeAiConnection(user.id, parsed.data.provider, parsed.data.apiKey)
     if (!result.ok) return jsonError(result.message, 400)
+    const who = result.provider === "gemini" ? "Gemini" : "Groq"
+    const seconds = Math.max(1, Math.round(result.latencyMs / 100) / 10)
     return jsonOk({
       ok: true,
       provider: result.provider,
       model: result.model,
       latencyMs: result.latencyMs,
-      message: `${result.provider === "gemini" ? "Gemini" : "Groq"} responded in ${Math.max(1, Math.round(result.latencyMs / 100) / 10)}s using ${result.model}.`,
+      message: result.note
+        ? `${who} accepted your key in ${seconds}s. ${result.note}`
+        : `${who} responded in ${seconds}s using ${result.model}.`,
     })
   } catch (error) {
     console.error("ai probe failed", error)

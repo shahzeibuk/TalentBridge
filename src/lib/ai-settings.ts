@@ -1,3 +1,11 @@
+import {
+  GEMINI_FAST_MODEL,
+  GEMINI_MODEL,
+  GEMINI_MODELS_URL,
+  geminiGenerateUrl,
+  geminiThinkingLow,
+  isAbortError,
+} from "@/lib/gemini"
 import { prisma } from "@/lib/prisma"
 import { decryptSecret, encryptSecret } from "@/lib/secret-box"
 
@@ -137,14 +145,12 @@ export async function saveAiSettings(
   return getAiSettingsPublic(userId)
 }
 
-const GEMINI_MODEL = "gemini-3.8-flash"
 const GROQ_MODEL = "openai/gpt-oss-20b"
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-const PROBE_TIMEOUT_MS = 20_000
+const PROBE_TIMEOUT_MS = 25_000
 
 export type AiProbeResult =
-  | { ok: true; provider: "gemini" | "groq"; model: string; latencyMs: number }
+  | { ok: true; provider: "gemini" | "groq"; model: string; latencyMs: number; note?: string }
   | { ok: false; provider: "gemini" | "groq" | "fallback"; message: string }
 
 async function resolveKeyForProbe(
@@ -160,57 +166,88 @@ async function resolveKeyForProbe(
 
 async function probeGemini(apiKey: string): Promise<AiProbeResult> {
   const started = Date.now()
+  const headers = {
+    "Content-Type": "application/json",
+    "x-goog-api-key": apiKey,
+  }
+
+  // Fast auth check: listing models proves the key without waiting on generation.
   try {
-    const response = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: 'Reply with JSON only: {"ok":true}' }] }],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 32,
-          responseMimeType: "application/json",
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    const listed = await fetch(`${GEMINI_MODELS_URL}?pageSize=1`, {
+      headers: { "x-goog-api-key": apiKey },
+      signal: AbortSignal.timeout(12_000),
     })
-    if (response.status === 400) {
-      const retry = await fetch(GEMINI_URL, {
+    if (listed.status === 400 || listed.status === 401 || listed.status === 403) {
+      return { ok: false, provider: "gemini", message: `Gemini rejected the key (${listed.status}).` }
+    }
+    if (!listed.ok) {
+      return { ok: false, provider: "gemini", message: `Gemini key check failed (${listed.status}).` }
+    }
+  } catch (error) {
+    if (isAbortError(error)) {
+      return { ok: false, provider: "gemini", message: "Gemini timed out while checking the key." }
+    }
+    return { ok: false, provider: "gemini", message: "We couldn't reach Gemini with that key." }
+  }
+
+  // Then prove generateContent with the fast lite model and low thinking.
+  const models = [GEMINI_FAST_MODEL, GEMINI_MODEL]
+  let lastError = "Gemini generate check failed."
+  for (const model of models) {
+    try {
+      const response = await fetch(geminiGenerateUrl(model), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
+        headers,
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: 'Reply with JSON only: {"ok":true}' }] }],
           generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 32,
+            maxOutputTokens: 16,
             responseMimeType: "application/json",
+            ...geminiThinkingLow(),
           },
         }),
         signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
       })
-      if (!retry.ok) {
-        return { ok: false, provider: "gemini", message: `Gemini rejected the key (${retry.status}).` }
+      if (response.status === 400) {
+        const retry = await fetch(geminiGenerateUrl(model), {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: 'Reply with JSON only: {"ok":true}' }] }],
+            generationConfig: {
+              maxOutputTokens: 16,
+              responseMimeType: "application/json",
+            },
+          }),
+          signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+        })
+        if (retry.ok) {
+          return { ok: true, provider: "gemini", model, latencyMs: Date.now() - started }
+        }
+        lastError = `Gemini rejected generate on ${model} (${retry.status}).`
+        continue
       }
-      return { ok: true, provider: "gemini", model: GEMINI_MODEL, latencyMs: Date.now() - started }
+      if (!response.ok) {
+        lastError = `Gemini rejected generate on ${model} (${response.status}).`
+        continue
+      }
+      return { ok: true, provider: "gemini", model, latencyMs: Date.now() - started }
+    } catch (error) {
+      if (isAbortError(error)) {
+        lastError = `Gemini timed out on ${model}. Try again, or use Groq under AI keys.`
+        continue
+      }
+      lastError = "We couldn't complete a Gemini generate check."
     }
-    if (!response.ok) {
-      return { ok: false, provider: "gemini", message: `Gemini rejected the key (${response.status}).` }
-    }
-    return { ok: true, provider: "gemini", model: GEMINI_MODEL, latencyMs: Date.now() - started }
-  } catch (error) {
-    const timedOut = error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")
-    return {
-      ok: false,
-      provider: "gemini",
-      message: timedOut ? "Gemini timed out. Try again in a moment." : "We couldn't reach Gemini with that key.",
-    }
+  }
+
+  // Key auth worked; generation was slow or unavailable.
+  return {
+    ok: true,
+    provider: "gemini",
+    model: GEMINI_FAST_MODEL,
+    latencyMs: Date.now() - started,
+    note: `${lastError} Your API key itself is valid.`,
   }
 }
 

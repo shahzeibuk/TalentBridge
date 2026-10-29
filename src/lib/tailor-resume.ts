@@ -1,7 +1,7 @@
+import { GEMINI_MODEL } from "@/lib/gemini"
 import { completeJson } from "@/lib/parse-resume"
 import { looseResumeData, type ParseSource, type ResumeData } from "@/lib/resume-data"
 
-const GEMINI_MODEL = "gemini-3.8-flash"
 const GROQ_MODEL = "openai/gpt-oss-20b"
 
 const STOP = new Set([

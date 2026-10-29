@@ -1,13 +1,12 @@
 import { fallbackExtract } from "@/lib/fallback-extract"
+import { GEMINI_MODEL, geminiGenerateUrl, geminiThinkingLow, isAbortError } from "@/lib/gemini"
 import {
   looseResumeData,
   type ParseSource,
   type ResumeData,
 } from "@/lib/resume-data"
 
-const GEMINI_MODEL = "gemini-3.8-flash"
 const GROQ_MODEL = "openai/gpt-oss-20b"
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 const SYSTEM_PROMPT = `Extract resume facts into JSON. Use only information that appears in the resume text. If a value is missing, use an empty string or an empty array. Do not invent employers, schools, dates, or skills.
@@ -98,10 +97,6 @@ function parseModelJson(raw: string) {
 
 const AI_FETCH_TIMEOUT_MS = 50_000
 
-function isAbortError(error: unknown) {
-  return error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")
-}
-
 async function geminiJson(system: string, user: string, apiKey: string, fetchImpl: typeof fetch) {
   const makeBody = (includeThinking: boolean) =>
     JSON.stringify({
@@ -112,15 +107,14 @@ async function geminiJson(system: string, user: string, apiKey: string, fetchImp
         },
       ],
       generationConfig: {
-        temperature: 0.1,
         maxOutputTokens: 4096,
         responseMimeType: "application/json",
-        ...(includeThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+        ...(includeThinking ? geminiThinkingLow() : {}),
       },
     })
 
   const send = (body: string) =>
-    fetchImpl(GEMINI_URL, {
+    fetchImpl(geminiGenerateUrl(GEMINI_MODEL), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -151,7 +145,6 @@ async function geminiJson(system: string, user: string, apiKey: string, fetchImp
     return await readJson(response)
   } catch (error) {
     if (!isAbortError(error)) throw error
-    // One leaner retry without thinking config after a timeout.
     try {
       return await readJson(await send(makeBody(false)))
     } catch (retryError) {
