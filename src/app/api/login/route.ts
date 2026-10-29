@@ -1,4 +1,5 @@
 import { compare } from "bcryptjs"
+import { Prisma } from "@prisma/client"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { jsonError, jsonOk } from "@/lib/responses"
@@ -29,12 +30,20 @@ export async function POST(request: Request) {
     return jsonError(parsed.error.issues[0]?.message ?? "Enter your email and password.", 400)
   }
 
-  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } })
-  const passwordMatches = user ? await compare(parsed.data.password, user.passwordHash) : false
-  if (!user || !passwordMatches) {
-    return jsonError("That email and password don't match.", 401)
-  }
+  try {
+    const user = await prisma.user.findUnique({ where: { email: parsed.data.email } })
+    const passwordMatches = user ? await compare(parsed.data.password, user.passwordHash) : false
+    if (!user || !passwordMatches) {
+      return jsonError("That email and password don't match.", 401)
+    }
 
-  await createSession({ id: user.id, email: user.email, name: user.name })
-  return jsonOk({ user: { id: user.id, email: user.email, name: user.name } })
+    await createSession({ id: user.id, email: user.email, name: user.name })
+    return jsonOk({ user: { id: user.id, email: user.email, name: user.name } })
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
+      return jsonError("The database is not set up yet. Ask the site owner to run migrations.", 503)
+    }
+    console.error("login failed", error)
+    return jsonError("We couldn't log you in. Try again in a moment.", 500)
+  }
 }

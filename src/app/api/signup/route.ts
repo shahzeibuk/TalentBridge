@@ -32,15 +32,15 @@ export async function POST(request: Request) {
     return jsonError(parsed.error.issues[0]?.message ?? "Check the signup form and try again.", 400)
   }
 
-  const existing = await prisma.user.findUnique({
-    where: { email: parsed.data.email },
-    select: { id: true },
-  })
-  if (existing) {
-    return jsonError("An account with that email already exists. Log in instead.", 409)
-  }
-
   try {
+    const existing = await prisma.user.findUnique({
+      where: { email: parsed.data.email },
+      select: { id: true },
+    })
+    if (existing) {
+      return jsonError("An account with that email already exists. Log in instead.", 409)
+    }
+
     const user = await prisma.user.create({
       data: {
         name: parsed.data.name,
@@ -54,6 +54,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return jsonError("An account with that email already exists. Log in instead.", 409)
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
+      return jsonError("The database is not set up yet. Ask the site owner to run migrations.", 503)
     }
     console.error("signup failed", error)
     return jsonError("We couldn't create the account. Try again in a moment.", 500)
