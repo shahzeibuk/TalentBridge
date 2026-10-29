@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
-import { Briefcase, FileText, LayoutDashboard, LogOut, Menu, Send, UserRound, X } from "lucide-react"
+import { Briefcase, FileText, KeyRound, LayoutDashboard, LogOut, Menu, Send, UserRound, X } from "lucide-react"
 import { AdminUserProvider } from "@/components/admin-user"
 import { buttonVariants } from "@/components/ui/button"
 import { workspaceNav, workspaceSection, workspaceTitle, type WorkspaceSection } from "@/lib/admin-nav"
@@ -15,6 +15,7 @@ const navIcons: Record<WorkspaceSection, typeof LayoutDashboard> = {
   resumes: FileText,
   jobs: Briefcase,
   applications: Send,
+  ai: KeyRound,
 }
 
 export function ShellFrame({

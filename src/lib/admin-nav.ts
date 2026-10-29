@@ -1,4 +1,4 @@
-export type WorkspaceSection = "overview" | "profile" | "resumes" | "jobs" | "applications"
+export type WorkspaceSection = "overview" | "profile" | "resumes" | "jobs" | "applications" | "ai"
 
 export const workspaceNav: { id: WorkspaceSection; label: string; href: string }[] = [
   { id: "overview", label: "Overview", href: "/dashboard?tab=overview" },
@@ -6,6 +6,7 @@ export const workspaceNav: { id: WorkspaceSection; label: string; href: string }
   { id: "resumes", label: "Resumes", href: "/dashboard?tab=resumes" },
   { id: "jobs", label: "Job postings", href: "/dashboard?tab=jobs" },
   { id: "applications", label: "Applications", href: "/dashboard?tab=applications" },
+  { id: "ai", label: "AI keys", href: "/dashboard?tab=ai" },
 ]
 
 const labels: Record<WorkspaceSection, string> = {
@@ -14,6 +15,7 @@ const labels: Record<WorkspaceSection, string> = {
   resumes: "Resumes",
   jobs: "Job postings",
   applications: "Applications",
+  ai: "AI keys",
 }
 
 export function workspaceSection(
@@ -27,7 +29,8 @@ export function workspaceSection(
     requested === "profile" ||
     requested === "resumes" ||
     requested === "jobs" ||
-    requested === "applications"
+    requested === "applications" ||
+    requested === "ai"
   ) {
     return requested
   }

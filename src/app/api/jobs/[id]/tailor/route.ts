@@ -1,3 +1,4 @@
+import { aiEnvForUser } from "@/lib/ai-settings"
 import { prisma } from "@/lib/prisma"
 import { looseResumeData } from "@/lib/resume-data"
 import { resumeFields, toResumeDetail } from "@/lib/resume-store"
@@ -29,7 +30,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   try {
     const source = looseResumeData(resume)
-    const tailored = await tailorResume(source, job)
+    const tailored = await tailorResume(source, job, { env: await aiEnvForUser(user.id) })
     const text = renderTailoredText(tailored.data)
     const created = await prisma.resume.create({
       data: {

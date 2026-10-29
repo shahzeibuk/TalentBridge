@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { extractDocxText, extractPdfText, ExtractError } from "@/lib/extract-text"
+import { aiEnvForUser } from "@/lib/ai-settings"
 import { parseResumeText } from "@/lib/parse-resume"
 import { jsonError, jsonOk } from "@/lib/responses"
 import { resumeFields, toListItem, toResumeDetail } from "@/lib/resume-store"
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
   try {
     const extractedText =
       inspected.kind === "pdf" ? await extractPdfText(bytes) : await extractDocxText(bytes)
-    const parsed = await parseResumeText(extractedText)
+    const parsed = await parseResumeText(extractedText, { env: await aiEnvForUser(user.id) })
     const resume = await prisma.resume.create({
       data: {
         userId: user.id,

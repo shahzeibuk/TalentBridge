@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
+import { AiSettingsPanel } from "@/components/ai-settings-panel"
 import { AnalyticsBoard } from "@/components/analytics-board"
 import { ApplicationsPanel } from "@/components/applications-panel"
 import { JobsPanel } from "@/components/jobs-panel"
@@ -294,6 +295,10 @@ export function DashboardScreen() {
               gmail={gmail}
               onReload={reloadApplications}
             />
+          </div>
+
+          <div hidden={tab !== "ai"}>
+            <AiSettingsPanel />
           </div>
         </>
       ) : null}

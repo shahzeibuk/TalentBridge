@@ -55,7 +55,7 @@ function resolveProvider(env: NodeJS.ProcessEnv):
   if (requested === "fallback") {
     return {
       provider: "fallback",
-      note: `AI_PROVIDER is fallback, so this draft used the local extractor. ${FALLBACK_NOTE}`,
+      note: `Your AI settings use local fallback, so this draft used the local extractor. ${FALLBACK_NOTE}`,
     }
   }
   if (requested === "groq") {
@@ -63,7 +63,7 @@ function resolveProvider(env: NodeJS.ProcessEnv):
     if (!apiKey) {
       return {
         provider: "fallback",
-        note: `AI_PROVIDER is groq, but GROQ_API_KEY is not set. ${FALLBACK_NOTE}`,
+        note: `Groq is selected, but no Groq API key is saved on your account. Add one under AI keys. ${FALLBACK_NOTE}`,
       }
     }
     return { provider: "groq", apiKey }
@@ -71,14 +71,14 @@ function resolveProvider(env: NodeJS.ProcessEnv):
   if (requested !== "gemini") {
     return {
       provider: "fallback",
-      note: `AI_PROVIDER "${requested}" isn't gemini, groq, or fallback. ${FALLBACK_NOTE}`,
+      note: `AI provider "${requested}" isn't gemini, groq, or fallback. ${FALLBACK_NOTE}`,
     }
   }
   const apiKey = env.GEMINI_API_KEY?.trim()
   if (!apiKey) {
     return {
       provider: "fallback",
-      note: `No GEMINI_API_KEY is set, so this draft used the local extractor. ${FALLBACK_NOTE}`,
+      note: `Gemini is selected, but no Gemini API key is saved on your account. Add one under AI keys. ${FALLBACK_NOTE}`,
     }
   }
   return { provider: "gemini", apiKey }

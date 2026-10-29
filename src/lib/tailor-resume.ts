@@ -150,15 +150,15 @@ export async function tailorResume(
     ...local,
     parseNote: noteFor("fallback", local.matchedKeywords, local.omittedKeywords, reason),
   })
-  if (provider === "fallback") return localNote("AI_PROVIDER is fallback, so this draft used the local ATS pass.")
+  if (provider === "fallback") return localNote("Your AI settings use local fallback, so this draft used the local ATS pass.")
   if (provider !== "gemini" && provider !== "groq") {
-    return localNote(`AI_PROVIDER "${provider}" isn't gemini, groq, or fallback.`)
+    return localNote(`AI provider "${provider}" isn't gemini, groq, or fallback.`)
   }
   if (provider === "groq" && !env.GROQ_API_KEY?.trim()) {
-    return localNote("AI_PROVIDER is groq, but GROQ_API_KEY is not set.")
+    return localNote("Groq is selected, but no Groq API key is saved on your account. Add one under AI keys.")
   }
   if (provider === "gemini" && !env.GEMINI_API_KEY?.trim()) {
-    return localNote("No GEMINI_API_KEY is set, so this draft used the local ATS pass.")
+    return localNote("Gemini is selected, but no Gemini API key is saved on your account. Add one under AI keys.")
   }
 
   try {
