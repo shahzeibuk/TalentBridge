@@ -19,6 +19,8 @@ export function AiSettingsPanel() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState<"gemini" | "groq" | null>(null)
+  const [probe, setProbe] = useState<{ ok: boolean; message: string } | null>(null)
 
   async function load() {
     setStatus("loading")
@@ -45,6 +47,7 @@ export function AiSettingsPanel() {
 
   async function save(extra?: { clearGemini?: boolean; clearGroq?: boolean }) {
     setSaving(true)
+    setProbe(null)
     try {
       const result = await api<{ settings: AiSettingsPublic }>("/api/settings/ai", {
         method: "PUT",
@@ -65,6 +68,28 @@ export function AiSettingsPanel() {
       toast.error(caught instanceof ApiError ? caught.message : "We couldn't save your AI settings.")
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function testProvider(target: "gemini" | "groq") {
+    setTesting(target)
+    setProbe(null)
+    try {
+      const result = await api<{ ok: true; message: string }>("/api/settings/ai/test", {
+        method: "POST",
+        body: JSON.stringify({
+          provider: target,
+          apiKey: target === "gemini" ? geminiApiKey.trim() || undefined : groqApiKey.trim() || undefined,
+        }),
+      })
+      setProbe({ ok: true, message: result.message })
+      toast.success(result.message)
+    } catch (caught) {
+      const message = caught instanceof ApiError ? caught.message : "We couldn't test that API key."
+      setProbe({ ok: false, message })
+      toast.error(message)
+    } finally {
+      setTesting(null)
     }
   }
 
@@ -159,11 +184,22 @@ export function AiSettingsPanel() {
               onChange={(event) => setGeminiApiKey(event.target.value)}
             />
           </div>
-          {settings?.geminiKeySet ? (
-            <Button type="button" variant="outline" className="h-9" disabled={saving} onClick={() => void save({ clearGemini: true })}>
-              Remove Gemini key
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9"
+              disabled={saving || testing !== null || (!geminiApiKey.trim() && !settings?.geminiKeySet)}
+              onClick={() => void testProvider("gemini")}
+            >
+              {testing === "gemini" ? "Testing Gemini…" : "Test Gemini"}
             </Button>
-          ) : null}
+            {settings?.geminiKeySet ? (
+              <Button type="button" variant="outline" className="h-9" disabled={saving || testing !== null} onClick={() => void save({ clearGemini: true })}>
+                Remove Gemini key
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         <div className="space-y-4 rounded-2xl border border-border bg-card p-5">
@@ -204,18 +240,47 @@ export function AiSettingsPanel() {
               onChange={(event) => setGroqApiKey(event.target.value)}
             />
           </div>
-          {settings?.groqKeySet ? (
-            <Button type="button" variant="outline" className="h-9" disabled={saving} onClick={() => void save({ clearGroq: true })}>
-              Remove Groq key
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9"
+              disabled={saving || testing !== null || (!groqApiKey.trim() && !settings?.groqKeySet)}
+              onClick={() => void testProvider("groq")}
+            >
+              {testing === "groq" ? "Testing Groq…" : "Test Groq"}
             </Button>
-          ) : null}
+            {settings?.groqKeySet ? (
+              <Button type="button" variant="outline" className="h-9" disabled={saving || testing !== null} onClick={() => void save({ clearGroq: true })}>
+                Remove Groq key
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 
+      {probe ? (
+        <Alert variant={probe.ok ? "default" : "destructive"}>
+          <AlertTitle>{probe.ok ? "API working" : "API check failed"}</AlertTitle>
+          <AlertDescription>{probe.message}</AlertDescription>
+        </Alert>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" className="h-10 px-5" disabled={saving} onClick={() => void save()}>
+        <Button type="button" className="h-10 px-5" disabled={saving || testing !== null} onClick={() => void save()}>
           {saving ? "Saving…" : "Save AI settings"}
         </Button>
+        {provider !== "fallback" ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 px-5"
+            disabled={saving || testing !== null}
+            onClick={() => void testProvider(provider)}
+          >
+            {testing === provider ? "Testing…" : `Test ${provider === "gemini" ? "Gemini" : "Groq"}`}
+          </Button>
+        ) : null}
         <p className="text-sm text-muted-foreground">
           {provider === "fallback"
             ? "Uploads will use the local extractor until you pick Gemini or Groq with a key."

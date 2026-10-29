@@ -136,3 +136,139 @@ export async function saveAiSettings(
 
   return getAiSettingsPublic(userId)
 }
+
+const GEMINI_MODEL = "gemini-3.8-flash"
+const GROQ_MODEL = "openai/gpt-oss-20b"
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+const PROBE_TIMEOUT_MS = 20_000
+
+export type AiProbeResult =
+  | { ok: true; provider: "gemini" | "groq"; model: string; latencyMs: number }
+  | { ok: false; provider: "gemini" | "groq" | "fallback"; message: string }
+
+async function resolveKeyForProbe(
+  userId: string,
+  provider: "gemini" | "groq",
+  draftKey?: string,
+): Promise<string> {
+  const trimmed = draftKey?.trim() ?? ""
+  if (trimmed) return trimmed
+  const env = await aiEnvForUser(userId)
+  return provider === "gemini" ? env.GEMINI_API_KEY?.trim() ?? "" : env.GROQ_API_KEY?.trim() ?? ""
+}
+
+async function probeGemini(apiKey: string): Promise<AiProbeResult> {
+  const started = Date.now()
+  try {
+    const response = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: 'Reply with JSON only: {"ok":true}' }] }],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 32,
+          responseMimeType: "application/json",
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      }),
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    })
+    if (response.status === 400) {
+      const retry = await fetch(GEMINI_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: 'Reply with JSON only: {"ok":true}' }] }],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 32,
+            responseMimeType: "application/json",
+          },
+        }),
+        signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      })
+      if (!retry.ok) {
+        return { ok: false, provider: "gemini", message: `Gemini rejected the key (${retry.status}).` }
+      }
+      return { ok: true, provider: "gemini", model: GEMINI_MODEL, latencyMs: Date.now() - started }
+    }
+    if (!response.ok) {
+      return { ok: false, provider: "gemini", message: `Gemini rejected the key (${response.status}).` }
+    }
+    return { ok: true, provider: "gemini", model: GEMINI_MODEL, latencyMs: Date.now() - started }
+  } catch (error) {
+    const timedOut = error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")
+    return {
+      ok: false,
+      provider: "gemini",
+      message: timedOut ? "Gemini timed out. Try again in a moment." : "We couldn't reach Gemini with that key.",
+    }
+  }
+}
+
+async function probeGroq(apiKey: string): Promise<AiProbeResult> {
+  const started = Date.now()
+  try {
+    const response = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        temperature: 0,
+        max_tokens: 32,
+        messages: [
+          { role: "system", content: "Reply with JSON only." },
+          { role: "user", content: '{"ok":true}' },
+        ],
+        response_format: { type: "json_object" },
+      }),
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    })
+    if (!response.ok) {
+      return { ok: false, provider: "groq", message: `Groq rejected the key (${response.status}).` }
+    }
+    return { ok: true, provider: "groq", model: GROQ_MODEL, latencyMs: Date.now() - started }
+  } catch (error) {
+    const timedOut = error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")
+    return {
+      ok: false,
+      provider: "groq",
+      message: timedOut ? "Groq timed out. Try again in a moment." : "We couldn't reach Groq with that key.",
+    }
+  }
+}
+
+/** Tiny live call so the user can confirm their Gemini or Groq key before uploading. */
+export async function probeAiConnection(
+  userId: string,
+  provider: AiProvider,
+  draftKey?: string,
+): Promise<AiProbeResult> {
+  if (provider === "fallback") {
+    return {
+      ok: false,
+      provider: "fallback",
+      message: "Local fallback does not use an API key. Pick Gemini or Groq to test a connection.",
+    }
+  }
+  const apiKey = await resolveKeyForProbe(userId, provider, draftKey)
+  if (!apiKey) {
+    return {
+      ok: false,
+      provider,
+      message: `No ${provider === "gemini" ? "Gemini" : "Groq"} API key is saved or pasted yet.`,
+    }
+  }
+  return provider === "gemini" ? probeGemini(apiKey) : probeGroq(apiKey)
+}
